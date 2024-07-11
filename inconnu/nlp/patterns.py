@@ -7,6 +7,9 @@ US_PHONE_NUMBERS_PATTERN = (
 )
 US_PHONE_NUMBERS_RE = re.compile(US_PHONE_NUMBERS_PATTERN)
 
+PHONE_NUMBER_PATTERN = r"\+\d{1,3} \d{1,4} \d{1,4}(\d{1,4})*"
+PHONE_NUMBER_PATTERN_RE = re.compile(PHONE_NUMBER_PATTERN)
+
 # NOTE(robinson) - Based on this regex from regex101. Regex was updated to run fast
 # and avoid catastrophic backtracking
 # ref: https://regex101.com/library/oR3jU1?page=673
