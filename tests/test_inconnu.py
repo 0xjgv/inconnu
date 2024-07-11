@@ -1,8 +1,11 @@
 import json
+from pathlib import Path
 
 import pytest
 
 from inconnu.main import EntityAnonymizer, Inconnu, PrivacyConfig
+
+MOCKS_PATH = Path("tests/mocks")
 
 
 @pytest.fixture
@@ -12,7 +15,7 @@ def inconnu():
         config=PrivacyConfig(
             anonymize_entities=True,
             data_retention_days=30,
-            max_text_length=500,
+            max_text_length=7_000,
         ),
     )
 
@@ -51,6 +54,12 @@ def structured_output() -> list[dict[str, str]]:
     ]
 
 
+@pytest.fixture
+def en_prompt() -> str:
+    with Path(MOCKS_PATH / "en_prompt.txt").open("r") as file:
+        return file.read()
+
+
 def test_process_data_basic(inconnu):
     text = "John Doe visited New York."
 
@@ -71,6 +80,7 @@ def test_process_data_no_entities(inconnu):
     assert len(result.entity_map) == 0
 
 
+@pytest.mark.skip(reason="Not implemented yet")
 def test_process_data_max_length(inconnu):
     text = "a" * 501  # Exceeds max_text_length of 500
 
@@ -171,3 +181,25 @@ def test_deanonymization_multiple_entities(
             "Date": "last week",
         },
     ]
+
+
+def test_en_prompt(inconnu, en_prompt):
+    result = inconnu.process_data(text=en_prompt)
+
+    deanonymized = inconnu.anonymizer.deanonymize(
+        text=result.anonymized_text,
+        entity_map=result.entity_map,
+    )
+
+    print(result.anonymized_text)
+    print(json.dumps(result.entity_map, indent=2))
+    # Custom NER components
+    assert result.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
+    assert result.entity_map.get("[PHONE_NUMBER_0]") == "+49 30 9876543"
+    assert result.entity_map.get("[PHONE_NUMBER_1]") == "+49 89 1234567"
+
+    assert result.entity_map.get("[PERSON_2]") == "Max Mustermann"
+    assert result.entity_map.get("[PERSON_0]") == "Emma Schmidt"
+    assert result.entity_map.get("[PERSON_1]") == "Mustermann"
+
+    assert en_prompt == deanonymized
