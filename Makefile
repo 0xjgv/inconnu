@@ -8,7 +8,7 @@ model-install:
 	poetry run python -m spacy download en_core_web_sm
 	poetry run pip install --upgrade pip
 
-install: deps-install model-install
+install: deps-install
 
 update-deps:
 	poetry config virtualenvs.in-project true
