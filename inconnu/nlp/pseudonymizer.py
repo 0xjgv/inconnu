@@ -10,20 +10,29 @@ custom_patterns_and_labels = [
 ]
 
 
-# Spacy pipeline for entity anonymization
-class EntityAnonymizer:
+# Spacy pipeline for entity pseudonymization
+class EntityPseudonymizer:
     __slots__ = ["nlp"]
 
     def __init__(self):
-        self.nlp = load("en_core_web_sm")
-        # self.nlp.disable_pipes("parser", "tagger")
+        # Disable everything except for NER
+        self.nlp = load(
+            "en_core_web_sm",
+            disable=[
+                "attribute_ruler",
+                "lemmatizer",
+                "tok2vec",
+                "tagger",
+                "parser",
+            ],
+        )
 
         for pattern, label in custom_patterns_and_labels:
             custom_ner_component_name = create_ner_component(pattern, label)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
-    def anonymize(self, text: str) -> tuple[str, dict[str, str]]:
-        anonymized_text = text
+    def __call__(self, text: str) -> tuple[str, dict[str, str]]:
+        pseudonymized_text = text
         doc = self.nlp(text)
         entity_map = {}
 
@@ -38,12 +47,12 @@ class EntityAnonymizer:
             placeholder = f"[{ent.label_}_{len(entity_map[ent.label_])}]"
             entity_map[ent.label_].append((ent.text, placeholder))
 
-            anonymized_text = (
-                anonymized_text[: ent.start_char]
+            pseudonymized_text = (
+                pseudonymized_text[: ent.start_char]
                 + placeholder
-                + anonymized_text[ent.end_char :]
+                + pseudonymized_text[ent.end_char :]
             )
-        return anonymized_text, {
+        return pseudonymized_text, {
             v[1]: v[0] for values in entity_map.values() for v in values
         }
 

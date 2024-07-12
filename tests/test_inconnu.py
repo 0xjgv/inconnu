@@ -5,17 +5,17 @@ import pytest
 
 from inconnu.config import Config
 from inconnu.main import Inconnu
-from inconnu.nlp.anonymizer import EntityAnonymizer
+from inconnu.nlp.pseudonymizer import EntityPseudonymizer
 
 MOCKS_PATH = Path("tests/mocks")
 
 
 @pytest.fixture
-def inconnu():
+def inconnu() -> Inconnu:
     return Inconnu(
-        anonymizer=EntityAnonymizer(),
+        pseudonymizer=EntityPseudonymizer(),
         config=Config(
-            anonymize_entities=True,
+            pseudonymize_entities=True,
             data_retention_days=30,
             max_text_length=7_000,
         ),
@@ -78,7 +78,7 @@ def test_process_data_no_entities(inconnu):
 
     result = inconnu.process_data(text=text)
 
-    assert result.anonymized_text == text
+    assert result.pseudonymized_text == text
     assert len(result.entity_map) == 0
 
 
@@ -108,15 +108,15 @@ def test_process_data_multiple_entities(inconnu):
     assert len(result.entity_map) == 8
 
 
-def test_process_data_no_anonymization(inconnu):
-    inconnu.config.anonymize_entities = False
+def test_process_data_no_pseudonymization(inconnu):
+    inconnu.config.pseudonymize_entities = False
     text = "John Doe visited New York."
 
     result = inconnu.process_data(text=text)
 
-    assert result.anonymized_text == text
+    assert result.pseudonymized_text == ""
     assert len(result.entity_map) == 0
-    assert not result.anonymized
+    assert not result.pseudonymized
     assert result.text == text
 
 
@@ -143,9 +143,9 @@ def test_deanonymization(inconnu):
 
     result = inconnu.process_data(text=text)
 
-    deanonymized = inconnu.anonymizer.deanonymize(
+    deanonymized = inconnu.pseudonymizer.deanonymize(
+        text=result.pseudonymized_text,
         entity_map=result.entity_map,
-        text=result.anonymized_text,
     )
     assert deanonymized == text
 
@@ -155,7 +155,7 @@ def test_deanonymization_multiple_entities(
 ):
     result = inconnu.process_data(text=multiple_entities_text)
 
-    deanonymized = inconnu.anonymizer.deanonymize(
+    deanonymized = inconnu.pseudonymizer.deanonymize(
         text=json.dumps(structured_output),
         entity_map=result.entity_map,
     )
@@ -188,15 +188,15 @@ def test_deanonymization_multiple_entities(
 def test_prompt_processing_time(inconnu, en_prompt):
     result = inconnu.process_data(text=en_prompt)
 
-    # Processing time should be less than 300ms
-    assert 0 < result.processing_time_ms < 300
+    # Processing time should be less than 150ms
+    assert 0 < result.processing_time_ms < 150
 
 
 def test_en_prompt(inconnu, en_prompt):
     result = inconnu.process_data(text=en_prompt)
 
-    deanonymized = inconnu.anonymizer.deanonymize(
-        text=result.anonymized_text,
+    deanonymized = inconnu.pseudonymizer.deanonymize(
+        text=result.pseudonymized_text,
         entity_map=result.entity_map,
     )
 
