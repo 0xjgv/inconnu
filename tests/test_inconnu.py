@@ -185,6 +185,13 @@ def test_deanonymization_multiple_entities(
     ]
 
 
+def test_prompt_processing_time(inconnu, en_prompt):
+    result = inconnu.process_data(text=en_prompt)
+
+    # Processing time should be less than 300ms
+    assert 0 < result.processing_time_ms < 300
+
+
 def test_en_prompt(inconnu, en_prompt):
     result = inconnu.process_data(text=en_prompt)
 

@@ -1,3 +1,9 @@
+# Inconnu
+
+Inconnu is a tool for pseudonymizing data, anonymizing data, and making data more private. It aims to be compliant with GDPR and other privacy regulations.
+
+> GDPR compliance for LLMs primarily hinges on several key principles: lawfulness, fairness, transparency, data minimization, accuracy, storage limitation, integrity, and confidentiality
+
 ## Checklist for Anonymizing Data
 1. Robust Anonymization Process:
 - Ensure that the anonymization process removes all personal identifiers and that the data cannot be re-identified using any reasonably available means.
@@ -19,6 +25,4 @@
 - Regularly review and update the anonymization process to address any new risks or changes in technology or legal standards.
 
 ### Resources
-- https://medium.com/quantrium-tech/top-3-packages-for-named-entity-recognition-e9e14f6f0a2a
 - https://dataknowsall.com/blog/ner.html
-- https://github.com/flairNLP/flair
