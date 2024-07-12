@@ -4,7 +4,7 @@ from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, PHONE_NUMBER_PATTERN_
 from inconnu.nlp.utils import EntityLabel, create_ner_component
 
 # Patterns and labels for custom NER components
-patterns_and_labels = [
+custom_patterns_and_labels = [
     (PHONE_NUMBER_PATTERN_RE, EntityLabel.PHONE_NUMBER),
     (EMAIL_ADDRESS_PATTERN_RE, EntityLabel.EMAIL),
 ]
@@ -16,8 +16,9 @@ class EntityAnonymizer:
 
     def __init__(self):
         self.nlp = load("en_core_web_sm")
+        # self.nlp.disable_pipes("parser", "tagger")
 
-        for pattern, label in patterns_and_labels:
+        for pattern, label in custom_patterns_and_labels:
             custom_ner_component_name = create_ner_component(pattern, label)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")
 

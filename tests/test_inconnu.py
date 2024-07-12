@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from inconnu.main import EntityAnonymizer, Inconnu, PrivacyConfig
+from inconnu.config import Config
+from inconnu.main import Inconnu
+from inconnu.nlp.anonymizer import EntityAnonymizer
 
 MOCKS_PATH = Path("tests/mocks")
 
@@ -12,7 +14,7 @@ MOCKS_PATH = Path("tests/mocks")
 def inconnu():
     return Inconnu(
         anonymizer=EntityAnonymizer(),
-        config=PrivacyConfig(
+        config=Config(
             anonymize_entities=True,
             data_retention_days=30,
             max_text_length=7_000,
@@ -191,7 +193,6 @@ def test_en_prompt(inconnu, en_prompt):
         entity_map=result.entity_map,
     )
 
-    print(result.anonymized_text)
     print(json.dumps(result.entity_map, indent=2))
     # Custom NER components
     assert result.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"

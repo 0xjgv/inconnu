@@ -4,14 +4,8 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
+from inconnu.config import Config
 from inconnu.nlp.anonymizer import EntityAnonymizer
-
-
-@dataclass
-class PrivacyConfig:
-    anonymize_entities: bool = True
-    data_retention_days: int = 30
-    max_text_length: int = 1000
 
 
 @dataclass
@@ -28,7 +22,7 @@ class ProcessedData:
 class Inconnu:
     __slots__ = ["anonymizer", "config"]
 
-    def __init__(self, *, config: PrivacyConfig, anonymizer: EntityAnonymizer):
+    def __init__(self, *, config: Config, anonymizer: EntityAnonymizer):
         self.anonymizer = anonymizer
         self.config = config
 
