@@ -1,28 +1,26 @@
 # Inconnu
 
-Inconnu is a tool for pseudonymizing data, anonymizing data, and making data more private. It aims to be compliant with GDPR and other privacy regulations.
+## What is Inconnu?
 
-> GDPR compliance for LLMs primarily hinges on several key principles: lawfulness, fairness, transparency, data minimization, accuracy, storage limitation, integrity, and confidentiality
+Inconnu is data privacy tool to help ensure GDPR compliance and robust data privacy. It provides cutting-edge tools for anonymizing and pseudonymizing data, ensuring your business meets stringent privacy regulations while maintaining the utility of your data.
 
-## Checklist for Anonymizing Data
-1. Robust Anonymization Process:
-- Ensure that the anonymization process removes all personal identifiers and that the data cannot be re-identified using any reasonably available means.
-- Use techniques such as data masking, pseudonymization, generalization, or differential privacy.
+## Why Inconnu?
 
-2. Legal Standards for Anonymization:
-- Verify that the anonymized data meets the GDPR criteria, ensuring it is no longer considered personal data.
-- Consult with legal experts to confirm that your anonymization process complies with GDPR standards.
+1. Seamless Compliance: Inconnu simplifies the complexity of GDPR and other privacy laws, making sure your data handling practices are always in line with legal standards. We provide clear, actionable steps to ensure your data is anonymized or pseudonymized effectively.
 
-3. Documentation and Transparency:
-- Document the anonymization process and maintain records of the techniques used.
-- Inform customers and stakeholders about the anonymization process and its compliance with legal requirements.
+2. State-of-the-Art Techniques: Utilizing the latest in data masking, generalization, and differential privacy, Inconnu ensures that personal identifiers are completely removed, and re-identification risks are minimized.
 
-4. Risk Assessment:
-- Conduct a risk assessment to evaluate the potential for re-identification.
-- Implement additional controls if necessary to mitigate any identified risks.
+3. Transparency and Trust: We document every step of our process and keep you informed, ensuring full transparency and building trust with your stakeholders.
 
-5. Regular Review:
-- Regularly review and update the anonymization process to address any new risks or changes in technology or legal standards.
+4. Comprehensive Risk Management: Inconnu conducts thorough risk assessments to identify and mitigate potential re-identification threats, continuously updating our processes to adapt to new technological and legal developments.
 
-### Resources
-- https://dataknowsall.com/blog/ner.html
+5. Expert Legal Compliance: By consulting with top legal experts, we guarantee that our anonymization and pseudonymization processes meet and exceed GDPR requirements.
+
+## Features
+
+- Robust Anonymization/Pseudonymization: Remove all personal identifiers to ensure data cannot be re-identified by any reasonable means.
+- Legal Verification: Ensure compliance with GDPR criteria through consultation with legal experts.
+- Process Documentation: Maintain detailed records of anonymization techniques and inform stakeholders of compliance efforts.
+- Regular Updates: Continuously review and enhance processes to address emerging risks and evolving standards.
+
+Inconnu is your partner in navigating the complex landscape of data privacy, providing tools that keep your business compliant and your data secure. Trust Inconnu to make data privacy simple, efficient, and reliable.
