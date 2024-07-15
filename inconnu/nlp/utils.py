@@ -1,7 +1,7 @@
 from enum import StrEnum
 from re import Pattern
 
-from spacy.language import Language
+from spacy.language import Language, PipeCallable
 from spacy.tokens import Doc, Span
 
 
@@ -37,11 +37,21 @@ def filter_overlapping_spans(spans):
     return filtered_spans
 
 
-def create_ner_component(pattern: Pattern, label: EntityLabel) -> str:
+def create_ner_component(
+    *,
+    processing_func: PipeCallable | None = None,
+    pattern: Pattern | None = None,
+    label: EntityLabel,
+) -> str:
     custom_ner_component_name = f"{label.lower()}_ner_component"
 
     @Language.component(custom_ner_component_name)
     def custom_ner_component(doc: Doc) -> Doc:
+        if processing_func:
+            return processing_func(doc)
+        if not pattern:
+            raise ValueError("Pattern is required if processing_func is not provided.")
+
         spans = []
         for match in pattern.finditer(doc.text):
             start, end = match.span()

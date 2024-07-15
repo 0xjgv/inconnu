@@ -1,9 +1,15 @@
 from enum import StrEnum
 
+from phonenumbers import PhoneNumberMatcher
 from spacy import load
+from spacy.tokens import Doc, Span
 
-from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, PHONE_NUMBER_PATTERN_RE
-from inconnu.nlp.utils import EntityLabel, create_ner_component
+from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE
+from inconnu.nlp.utils import (
+    EntityLabel,
+    create_ner_component,
+    filter_overlapping_spans,
+)
 
 
 class SpacyModels(StrEnum):
@@ -12,10 +18,32 @@ class SpacyModels(StrEnum):
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
-# Patterns and labels for custom NER components
-custom_patterns_and_labels = [
-    (PHONE_NUMBER_PATTERN_RE, EntityLabel.PHONE_NUMBER),
-    (EMAIL_ADDRESS_PATTERN_RE, EntityLabel.EMAIL),
+SUPPORTED_REGIONS = ["DE", "CH", "GB"]
+
+
+def process_phone_number(doc: Doc) -> Doc:
+    seen_spans = set()
+    spans = []
+
+    for region in SUPPORTED_REGIONS:
+        for match in PhoneNumberMatcher(doc.text, region, leniency=1):
+            span = doc.char_span(match.start, match.end)
+            if span and span not in seen_spans:
+                spans.append(
+                    Span(doc, span.start, span.end, label=EntityLabel.PHONE_NUMBER)
+                )
+                seen_spans.add(span)
+
+    doc.ents = filter_overlapping_spans(list(doc.ents) + spans)
+    return doc
+
+
+custom_ner_components = [
+    {"pattern": EMAIL_ADDRESS_PATTERN_RE, "label": EntityLabel.EMAIL},
+    {
+        "processing_func": process_phone_number,
+        "label": EntityLabel.PHONE_NUMBER,
+    },
 ]
 
 
@@ -36,8 +64,8 @@ class EntityPseudonymizer:
             ],
         )
 
-        for pattern, label in custom_patterns_and_labels:
-            custom_ner_component_name = create_ner_component(pattern, label)
+        for custom_ner_component in custom_ner_components:
+            custom_ner_component_name = create_ner_component(**custom_ner_component)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
     def __call__(self, text: str) -> tuple[str, dict[str, str]]:
