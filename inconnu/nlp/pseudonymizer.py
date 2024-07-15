@@ -1,7 +1,16 @@
+from enum import StrEnum
+
 from spacy import load
 
 from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, PHONE_NUMBER_PATTERN_RE
 from inconnu.nlp.utils import EntityLabel, create_ner_component
+
+
+class SpacyModels(StrEnum):
+    # 'en_core_web_trf' is the most accurate model for name entity recognition
+    EN_CORE_WEB_TRF = "en_core_web_trf"
+    EN_CORE_WEB_SM = "en_core_web_sm"
+
 
 # Patterns and labels for custom NER components
 custom_patterns_and_labels = [
@@ -17,7 +26,7 @@ class EntityPseudonymizer:
     def __init__(self):
         # Disable everything except for NER
         self.nlp = load(
-            "en_core_web_sm",
+            SpacyModels.EN_CORE_WEB_SM,
             disable=[
                 "attribute_ruler",
                 "lemmatizer",
