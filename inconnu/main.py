@@ -4,26 +4,26 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from inconnu.config import Config
-from inconnu.nlp.anonymizer import EntityAnonymizer
+from inconnu.nlp.pseudonymizer import EntityPseudonymizer
 
 
 @dataclass
 class ProcessedData:
     entity_map: dict[str, str]
     processing_time_ms: float
-    anonymized_text: str
+    pseudonymized_text: str
+    pseudonymized: bool
     text_length: int
-    anonymized: bool
     timestamp: str
     hashed_id: str
     text: str
 
 
 class Inconnu:
-    __slots__ = ["anonymizer", "config"]
+    __slots__ = ["pseudonymizer", "config"]
 
-    def __init__(self, *, config: Config, anonymizer: EntityAnonymizer):
-        self.anonymizer = anonymizer
+    def __init__(self, *, config: Config, pseudonymizer: EntityPseudonymizer):
+        self.pseudonymizer = pseudonymizer
         self.config = config
 
     def process_data(self, *, text: str) -> ProcessedData:
@@ -37,18 +37,18 @@ class Inconnu:
             timestamp=datetime.now().isoformat(),
             hashed_id=self.hash_text(text),
             text_length=len(text),
+            pseudonymized_text="",
             processing_time_ms=0,
-            anonymized_text=text,
-            anonymized=False,
+            pseudonymized=False,
             entity_map={},
             text=text,
         )
 
-        if self.config.anonymize_entities:
-            anonymized_text, entity_map = self.anonymizer.anonymize(text)
-            processed_data.anonymized_text = anonymized_text
+        if self.config.pseudonymize_entities:
+            pseudonymized_text, entity_map = self.pseudonymizer(text)
+            processed_data.pseudonymized_text = pseudonymized_text
             processed_data.entity_map = entity_map
-            processed_data.anonymized = True
+            processed_data.pseudonymized = True
 
         end_time = time.time()
         processed_data.processing_time_ms = (end_time - start_time) * 1000
