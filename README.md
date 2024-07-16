@@ -24,3 +24,7 @@ Inconnu is data privacy tool to help ensure GDPR compliance and robust data priv
 - Regular Updates: Continuously review and enhance processes to address emerging risks and evolving standards.
 
 Inconnu is your partner in navigating the complex landscape of data privacy, providing tools that keep your business compliant and your data secure. Trust Inconnu to make data privacy simple, efficient, and reliable.
+
+
+# Custom NER components
+- https://pypi.org/project/pgeocode/

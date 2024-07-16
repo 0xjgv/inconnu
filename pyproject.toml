@@ -10,7 +10,6 @@ python = "^3.11"
 spacy = "^3.7.5"
 phonenumbers = "^8.13.40"
 en-core-web-sm = {url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl"}
-ruff = "^0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.23.7"
