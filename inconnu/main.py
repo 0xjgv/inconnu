@@ -26,7 +26,7 @@ class Inconnu:
         self.pseudonymizer = pseudonymizer
         self.config = config
 
-    def process_data(self, *, text: str) -> ProcessedData:
+    def process_data(self, *, text: str, language: str = "en") -> ProcessedData:
         start_time = time.time()
         if len(text) > self.config.max_text_length:
             raise ValueError(

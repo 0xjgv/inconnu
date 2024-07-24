@@ -17,11 +17,13 @@ class EntityLabel(StrEnum):
     TIME = "TIME"
     DATE = "DATE"
     NORP = "NORP"
+    MISC = "MISC"  # misc for DE language“
     LAW = "LAW"
     LOC = "LOC"
     ORG = "ORG"
     GPE = "GPE"
     FAC = "FAC"
+    PER = "PER"  # person for DE language
 
 
 def filter_overlapping_spans(spans):

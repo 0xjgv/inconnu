@@ -15,6 +15,7 @@ from inconnu.nlp.utils import (
 class SpacyModels(StrEnum):
     # 'en_core_web_trf' is the most accurate model for name entity recognition
     EN_CORE_WEB_TRF = "en_core_web_trf"
+    DE_CORE_NEWS_MD = "de_core_news_md"
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
@@ -38,7 +39,26 @@ def process_phone_number(doc: Doc) -> Doc:
     return doc
 
 
+def person_with_title(doc: Doc) -> Doc:
+    ents = []
+    for ent in doc.ents:
+        # Only check for title if it's a person and not the first token
+        if ent.label_.startswith("PER") and ent.start != 0:
+            prev_token = doc[ent.start - 1]
+            if prev_token.text in ("Dr", "Dr.", "Mr", "Mr.", "Ms", "Ms."):
+                person_ent = Span(doc, ent.start - 1, ent.end, label=EntityLabel.PERSON)
+                ents.append(person_ent)
+            else:
+                person_ent = Span(doc, ent.start, ent.end, label=EntityLabel.PERSON)
+                ents.append(person_ent)
+        else:
+            ents.append(ent)
+    doc.ents = ents
+    return doc
+
+
 custom_ner_components = [
+    {"processing_func": person_with_title, "label": EntityLabel.PERSON},
     {"pattern": EMAIL_ADDRESS_PATTERN_RE, "label": EntityLabel.EMAIL},
     {
         "processing_func": process_phone_number,
@@ -51,10 +71,12 @@ custom_ner_components = [
 class EntityPseudonymizer:
     __slots__ = ["nlp"]
 
-    def __init__(self):
+    def __init__(self, language: str = "en"):
         # Disable everything except for NER
         self.nlp = load(
-            SpacyModels.EN_CORE_WEB_SM,
+            SpacyModels.DE_CORE_NEWS_MD
+            if language == "de"
+            else SpacyModels.EN_CORE_WEB_SM,
             disable=[
                 "attribute_ruler",
                 "lemmatizer",

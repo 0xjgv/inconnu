@@ -27,4 +27,5 @@ Inconnu is your partner in navigating the complex landscape of data privacy, pro
 
 
 # Custom NER components
+- [Additional models](https://spacy.io/models/de#de_core_news_md)
 - https://pypi.org/project/pgeocode/
