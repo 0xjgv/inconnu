@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from inconnu import Inconnu
 from inconnu.config import Config
-from inconnu.main import Inconnu
 from inconnu.nlp.pseudonymizer import EntityPseudonymizer
 
 MOCKS_PATH = Path("tests/mocks")

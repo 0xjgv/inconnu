@@ -5,7 +5,8 @@ deps-install:
 	poetry install -vv
 
 model-install:
-	# poetry run python -m spacy download en_core_web_trf
+	poetry run python -m spacy download en_core_web_trf
+	poetry run python -m spacy download de_core_news_md
 	poetry run python -m spacy download en_core_web_sm
 	poetry run pip install --upgrade pip
 
