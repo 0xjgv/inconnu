@@ -97,14 +97,6 @@ def test_process_data_no_entities(inconnu_pseudonymizer_en):
     assert len(result.entity_map) == 0
 
 
-@pytest.mark.skip(reason="Not implemented yet")
-def test_process_data_max_length(inconnu_pseudonymizer_en):
-    text = "a" * 501  # Exceeds max_text_length of 500
-
-    with pytest.raises(ValueError, match="Text exceeds maximum length of 500"):
-        inconnu_pseudonymizer_en(text=text)
-
-
 def test_process_data_multiple_entities(inconnu_pseudonymizer_en):
     text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
 
