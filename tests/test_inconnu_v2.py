@@ -3,36 +3,32 @@ from pathlib import Path
 
 import pytest
 
-from inconnu import Inconnu
+from inconnu import InconnuV2
 from inconnu.config import Config
-from inconnu.nlp.anonymizer import EntityAnonymizer
-from inconnu.nlp.pseudonymizer import EntityPseudonymizer
 
 MOCKS_PATH = Path("tests/mocks")
 
 
 @pytest.fixture
-def inconnu_en() -> Inconnu:
-    return Inconnu(
-        pseudonymizer=EntityPseudonymizer(language="en"),
-        anonymizer=EntityAnonymizer(language="en"),
+def inconnu_en() -> InconnuV2:
+    return InconnuV2(
         config=Config(
             pseudonymize_entities=True,
             data_retention_days=30,
             max_text_length=75_000,
+            language="en",
         ),
     )
 
 
 @pytest.fixture
-def inconnu_de() -> Inconnu:
-    return Inconnu(
-        pseudonymizer=EntityPseudonymizer(language="de"),
-        anonymizer=EntityAnonymizer(language="de"),
+def inconnu_de() -> InconnuV2:
+    return InconnuV2(
         config=Config(
             pseudonymize_entities=True,
             data_retention_days=30,
             max_text_length=75_000,
+            language="de",
         ),
     )
 
