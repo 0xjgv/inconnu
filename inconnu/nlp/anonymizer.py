@@ -10,11 +10,11 @@ from inconnu.nlp.utils import (
 )
 
 
-# Spacy pipeline for entity pseudonymization
-class EntityPseudonymizer:
+# Spacy pipeline for entity anonymization
+class EntityAnonymizer:
     __slots__ = ["nlp", "language"]
     _instance = None
-    _lock = Lock()  # Ensure thread safety
+    _lock = Lock()
 
     def __new__(cls, language: Language):
         if cls._instance is None or cls._instance.language != language:
@@ -41,32 +41,19 @@ class EntityPseudonymizer:
             custom_ner_component_name = create_ner_component(**custom_ner_component)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
-    def __call__(self, text: str) -> tuple[str, dict[str, str]]:
-        pseudonymized_text = text
+    def __call__(self, text: str) -> str:
+        anonymized_text = text
         doc = self.nlp(text)
-        entity_map = {}
 
         filtered_ents = filter(
             lambda ent: ent.label_ in EntityLabel.__members__, doc.ents
         )
         # Process in reverse to avoid index issues
         for ent in reversed(list(filtered_ents)):
-            if ent.label_ not in entity_map:
-                entity_map[ent.label_] = []
-
-            placeholder = f"[{ent.label_}_{len(entity_map[ent.label_])}]"
-            entity_map[ent.label_].append((ent.text, placeholder))
-
-            pseudonymized_text = (
-                pseudonymized_text[: ent.start_char]
+            placeholder = f"[{ent.label_}]"
+            anonymized_text = (
+                anonymized_text[: ent.start_char]
                 + placeholder
-                + pseudonymized_text[ent.end_char :]
+                + anonymized_text[ent.end_char :]
             )
-        return pseudonymized_text, {
-            v[1]: v[0] for values in entity_map.values() for v in values
-        }
-
-    def deanonymize(self, *, text: str, entity_map: dict[str, str]) -> str:
-        for placeholder, original in entity_map.items():
-            text = text.replace(placeholder, original)
-        return text
+        return anonymized_text

@@ -1,8 +1,12 @@
 from enum import StrEnum
 from re import Pattern
 
+from phonenumbers import PhoneNumberMatcher
 from spacy.language import Language, PipeCallable
 from spacy.tokens import Doc, Span
+
+from inconnu.config import SUPPORTED_REGIONS
+from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE
 
 
 # NER labels to randomize
@@ -65,3 +69,48 @@ def create_ner_component(
         return doc
 
     return custom_ner_component_name
+
+
+def _process_phone_number(doc: Doc) -> Doc:
+    seen_spans = set()
+    spans = []
+
+    for region in SUPPORTED_REGIONS:
+        for match in PhoneNumberMatcher(doc.text, region, leniency=1):
+            span = doc.char_span(match.start, match.end)
+            if span and span not in seen_spans:
+                spans.append(
+                    Span(doc, span.start, span.end, label=EntityLabel.PHONE_NUMBER)
+                )
+                seen_spans.add(span)
+
+    doc.ents = filter_overlapping_spans(list(doc.ents) + spans)
+    return doc
+
+
+def _person_with_title(doc: Doc) -> Doc:
+    ents = []
+    for ent in doc.ents:
+        # Only check for title if it's a person and not the first token
+        if ent.label_.startswith("PER") and ent.start != 0:
+            prev_token = doc[ent.start - 1]
+            if prev_token.text in ("Dr", "Dr.", "Mr", "Mr.", "Ms", "Ms."):
+                person_ent = Span(doc, ent.start - 1, ent.end, label=EntityLabel.PERSON)
+                ents.append(person_ent)
+            else:
+                person_ent = Span(doc, ent.start, ent.end, label=EntityLabel.PERSON)
+                ents.append(person_ent)
+        else:
+            ents.append(ent)
+    doc.ents = ents
+    return doc
+
+
+CUSTOM_NER_COMPONENTS = [
+    {"processing_func": _person_with_title, "label": EntityLabel.PERSON},
+    {"pattern": EMAIL_ADDRESS_PATTERN_RE, "label": EntityLabel.EMAIL},
+    {
+        "processing_func": _process_phone_number,
+        "label": EntityLabel.PHONE_NUMBER,
+    },
+]

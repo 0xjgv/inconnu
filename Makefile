@@ -25,8 +25,8 @@ format:
 lint:
 	poetry run ruff check .
 
-clean: fix format lint
-	rm -fr .pytest_cache */__pycache__ */*/__pycache__
+clean: format fix lint
+	rm -rf .pytest_cache */__pycache__ */*/__pycache__ */*/*/__pycache__
 	poetry run ruff clean
 
 test:
