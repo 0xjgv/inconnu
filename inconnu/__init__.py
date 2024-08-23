@@ -21,13 +21,9 @@ class ProcessedData:
 
 
 class Inconnu:
-    __slots__ = ["anonymizer", "config", "pseudonymizer"]
+    __slots__ = ["pseudonymizer", "anonymizer", "config"]
 
-    def __init__(
-        self,
-        *,
-        config: Config,
-    ):
+    def __init__(self, *, config: Config):
         self.pseudonymizer = EntityPseudonymizer(language=config.language)
         self.anonymizer = EntityAnonymizer(language=config.language)
         self.config = config

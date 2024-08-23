@@ -1,5 +1,3 @@
-from threading import Lock
-
 from spacy import load
 
 from inconnu.config import Language, get_spacy_model
@@ -7,24 +5,14 @@ from inconnu.nlp.utils import (
     CUSTOM_NER_COMPONENTS,
     EntityLabel,
     create_ner_component,
+    singleton,
 )
 
 
 # Spacy pipeline for entity anonymization
+@singleton
 class EntityAnonymizer:
-    __slots__ = ["nlp", "language"]
-    _instance = None
-    _lock = Lock()
-
-    def __new__(cls, language: Language):
-        if cls._instance is None or cls._instance.language != language:
-            with cls._lock:
-                cls._instance = super().__new__(cls)
-                cls._instance._initialize(language)
-        return cls._instance
-
-    def _initialize(self, language: Language):
-        # Disable everything except for NER
+    def __init__(self, language: Language):
         self.nlp = load(
             get_spacy_model(language),
             disable=[
@@ -35,8 +23,6 @@ class EntityAnonymizer:
                 "parser",
             ],
         )
-        self.language = language
-
         for custom_ner_component in CUSTOM_NER_COMPONENTS:
             custom_ner_component_name = create_ner_component(**custom_ner_component)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")

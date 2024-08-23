@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import StrEnum
 from re import Pattern
 
@@ -7,6 +8,18 @@ from spacy.tokens import Doc, Span
 
 from inconnu.config import SUPPORTED_REGIONS
 from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE
+
+
+def singleton(cls):
+    instances = defaultdict(dict)
+
+    def get_instance_by_language(*args, **kwargs):
+        language = kwargs.get("language")
+        if language not in instances[cls]:
+            instances[cls][language] = cls(*args, **kwargs)
+        return instances[cls][language]
+
+    return get_instance_by_language
 
 
 # NER labels to randomize
