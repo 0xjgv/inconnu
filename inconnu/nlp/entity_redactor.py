@@ -9,6 +9,7 @@ from inconnu.nlp.utils import (
     EntityLabel,
     create_ner_component,
     filter_overlapping_spans,
+    singleton,
 )
 
 
@@ -68,7 +69,8 @@ custom_ner_components = [
 
 
 # Spacy pipeline for entity pseudonymization
-class EntityPseudonymizer:
+@singleton
+class EntityRedactor:
     __slots__ = ["nlp"]
 
     def __init__(self, language: str = "en"):
@@ -90,8 +92,10 @@ class EntityPseudonymizer:
             custom_ner_component_name = create_ner_component(**custom_ner_component)
             self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
-    def __call__(self, text: str) -> tuple[str, dict[str, str]]:
-        pseudonymized_text = text
+    def redact(
+        self, *, text: str, deanonymize: bool = True
+    ) -> tuple[str, dict[str, str]]:
+        redacted_text = text
         doc = self.nlp(text)
         entity_map = {}
 
@@ -103,15 +107,17 @@ class EntityPseudonymizer:
             if ent.label_ not in entity_map:
                 entity_map[ent.label_] = []
 
-            placeholder = f"[{ent.label_}_{len(entity_map[ent.label_])}]"
-            entity_map[ent.label_].append((ent.text, placeholder))
+            placeholder = f"[{ent.label_}]"
+            if deanonymize:
+                placeholder = f"[{ent.label_}_{len(entity_map[ent.label_])}]"
+                entity_map[ent.label_].append((ent.text, placeholder))
 
-            pseudonymized_text = (
-                pseudonymized_text[: ent.start_char]
+            redacted_text = (
+                redacted_text[: ent.start_char]
                 + placeholder
-                + pseudonymized_text[ent.end_char :]
+                + redacted_text[ent.end_char :]
             )
-        return pseudonymized_text, {
+        return redacted_text, {
             v[1]: v[0] for values in entity_map.values() for v in values
         }
 
