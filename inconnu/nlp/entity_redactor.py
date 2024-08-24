@@ -4,6 +4,7 @@ from phonenumbers import PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
+from inconnu.nlp.interfaces import ProcessedData
 from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE
 from inconnu.nlp.utils import (
     EntityLabel,
@@ -121,7 +122,8 @@ class EntityRedactor:
             v[1]: v[0] for values in entity_map.values() for v in values
         }
 
-    def deanonymize(self, *, text: str, entity_map: dict[str, str]) -> str:
-        for placeholder, original in entity_map.items():
+    def deanonymize(self, *, processed_data: ProcessedData) -> str:
+        text = processed_data.redacted_text
+        for placeholder, original in processed_data.entity_map.items():
             text = text.replace(placeholder, original)
         return text

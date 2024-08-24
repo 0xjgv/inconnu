@@ -1,21 +1,10 @@
 import hashlib
 import time
-from dataclasses import dataclass
 from datetime import datetime
 
 from inconnu.config import Config
 from inconnu.nlp.entity_redactor import EntityRedactor
-
-
-@dataclass
-class ProcessedData:
-    entity_map: dict[str, str]
-    processing_time_ms: float
-    redacted_text: str
-    original_text: str
-    text_length: int
-    timestamp: str
-    hashed_id: str
+from inconnu.nlp.interfaces import ProcessedData
 
 
 class Inconnu:
@@ -31,11 +20,15 @@ class Inconnu:
         self.deanonymize = self.entity_redactor.deanonymize
         self.config = config
 
+    def _log(self, *args, **kwargs):
+        print(*args, **kwargs)
+
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
     def __call__(self, *, text: str, deanonymize: bool = True) -> ProcessedData:
         start_time = time.time()
+        self._log(f"Processing text ({deanonymize=}): {len(text)} characters")
         if len(text) > self.config.max_text_length:
             raise ValueError(
                 f"Text exceeds maximum length of {self.config.max_text_length}"
@@ -59,5 +52,5 @@ class Inconnu:
 
         end_time = time.time()
         processed_data.processing_time_ms = (end_time - start_time) * 1000
-        print(f"Processing time: {processed_data.processing_time_ms:.2f} ms")
+        self._log(f"Processing time: {processed_data.processing_time_ms:.2f} ms")
         return processed_data

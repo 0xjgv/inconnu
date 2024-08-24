@@ -134,10 +134,7 @@ class TestInconnuPseudonymizer:
 
         processed_data = inconnu_en(text=text)
 
-        deanonymized = inconnu_en.deanonymize(
-            entity_map=processed_data.entity_map,
-            text=processed_data.redacted_text,
-        )
+        deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
         assert deanonymized == text
 
     def test_deanonymization_multiple_entities(
@@ -145,10 +142,8 @@ class TestInconnuPseudonymizer:
     ):
         processed_data = inconnu_en(text=multiple_entities_text)
 
-        deanonymized = inconnu_en.deanonymize(
-            text=json.dumps(structured_output),
-            entity_map=processed_data.entity_map,
-        )
+        processed_data.redacted_text = json.dumps(structured_output)
+        deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
 
         assert json.loads(deanonymized) == [
             {
@@ -183,10 +178,7 @@ class TestInconnuPseudonymizer:
     def test_de_prompt(self, inconnu_de, de_prompt):
         processed_data = inconnu_de(text=de_prompt)
 
-        deanonymized_text = inconnu_de.deanonymize(
-            entity_map=processed_data.entity_map,
-            text=processed_data.redacted_text,
-        )
+        deanonymized_text = inconnu_de.deanonymize(processed_data=processed_data)
 
         # Custom NER components
         assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
