@@ -5,8 +5,6 @@ import pytest
 
 from inconnu import Inconnu
 from inconnu.config import Config
-from inconnu.nlp.anonymizer import EntityAnonymizer
-from inconnu.nlp.pseudonymizer import EntityPseudonymizer
 
 MOCKS_PATH = Path("tests/mocks")
 
@@ -14,26 +12,22 @@ MOCKS_PATH = Path("tests/mocks")
 @pytest.fixture
 def inconnu_en() -> Inconnu:
     return Inconnu(
-        pseudonymizer=EntityPseudonymizer(language="en"),
-        anonymizer=EntityAnonymizer(language="en"),
         config=Config(
-            pseudonymize_entities=True,
             data_retention_days=30,
             max_text_length=75_000,
         ),
+        language="en",
     )
 
 
 @pytest.fixture
 def inconnu_de() -> Inconnu:
     return Inconnu(
-        pseudonymizer=EntityPseudonymizer(language="de"),
-        anonymizer=EntityAnonymizer(language="de"),
         config=Config(
-            pseudonymize_entities=True,
             data_retention_days=30,
             max_text_length=75_000,
         ),
+        language="de",
     )
 
 
@@ -83,152 +77,215 @@ def de_prompt() -> str:
         return file.read()
 
 
-def test_process_data_basic(inconnu_en):
-    text = "John Doe visited New York."
+class TestInconnuPseudonymizer:
+    def test_process_data_basic(self, inconnu_en):
+        text = "John Doe visited New York."
 
-    result = inconnu_en.process_data(text=text)
+        processed_data = inconnu_en(text=text)
 
-    assert result.entity_map["[PERSON_0]"] == "John Doe"
-    assert result.entity_map["[GPE_0]"] == "New York"
-    assert result.text_length == len(text)
-    assert len(result.entity_map) == 2
+        assert processed_data.entity_map["[PERSON_0]"] == "John Doe"
+        assert processed_data.entity_map["[GPE_0]"] == "New York"
+        assert processed_data.text_length == len(text)
+        assert len(processed_data.entity_map) == 2
+
+    def test_process_data_no_entities(self, inconnu_en):
+        text = "The quick brown fox jumps over the lazy dog."
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.redacted_text == text
+        assert len(processed_data.entity_map) == 0
+
+    def test_process_data_multiple_entities(self, inconnu_en):
+        text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.entity_map["[DATE_1]"] == "last summer"
+        assert processed_data.entity_map["[DATE_0]"] == "March"
+
+        assert processed_data.entity_map["[PERSON_0]"] == "Jane Smith"
+        assert processed_data.entity_map["[PERSON_1]"] == "John Doe"
+
+        assert processed_data.entity_map["[GPE_1]"] == "California"
+        assert processed_data.entity_map["[GPE_3]"] == "New York"
+        assert processed_data.entity_map["[GPE_2]"] == "Paris"
+        assert processed_data.entity_map["[GPE_0]"] == "Tokyo"
+        assert len(processed_data.entity_map) == 8
+
+    def test_process_data_hashing(self, inconnu_en):
+        text = "John Doe visited New York."
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.hashed_id.isalnum()  # Should be alphanumeric
+        assert len(processed_data.hashed_id) == 64  # SHA-256 hash length
+
+    def test_process_data_timestamp(self, inconnu_en):
+        text = "John Doe visited New York."
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.timestamp is not None
+        assert len(processed_data.timestamp) > 0
+
+    def test_deanonymization(self, inconnu_en):
+        text = "John Doe visited New York last summer."
+
+        processed_data = inconnu_en(text=text)
+
+        deanonymized = inconnu_en.deanonymize(
+            entity_map=processed_data.entity_map,
+            text=processed_data.redacted_text,
+        )
+        assert deanonymized == text
+
+    def test_deanonymization_multiple_entities(
+        self, inconnu_en, multiple_entities_text, structured_output
+    ):
+        processed_data = inconnu_en(text=multiple_entities_text)
+
+        deanonymized = inconnu_en.deanonymize(
+            text=json.dumps(structured_output),
+            entity_map=processed_data.entity_map,
+        )
+
+        assert json.loads(deanonymized) == [
+            {
+                "Person": "John Doe",
+                "Origin": "New York",
+                "Event": "Visit",
+                "Location": "Paris",
+                "Date": "last summer",
+            },
+            {
+                "Person": "Jane Smith",
+                "Origin": "California",
+                "Event": "Conference Attendance",
+                "Location": "Tokyo",
+                "Date": "March",
+            },
+            {
+                "Person": "Dr. Alice Johnson",
+                "Origin": "Texas",
+                "Event": "Lecture",
+                "Location": "London",
+                "Date": "last week",
+            },
+        ]
+
+    def test_prompt_processing_time(self, inconnu_en, en_prompt):
+        processed_data = inconnu_en(text=en_prompt)
+
+        # Processing time should be less than 200ms
+        assert 0 < processed_data.processing_time_ms < 200
+
+    def test_de_prompt(self, inconnu_de, de_prompt):
+        processed_data = inconnu_de(text=de_prompt)
+
+        deanonymized_text = inconnu_de.deanonymize(
+            entity_map=processed_data.entity_map,
+            text=processed_data.redacted_text,
+        )
+
+        # Custom NER components
+        assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
+        assert processed_data.entity_map.get("[PHONE_NUMBER_0]") == "+49 30 9876543"
+        assert processed_data.entity_map.get("[PHONE_NUMBER_1]") == "+49 89 1234567"
+
+        assert processed_data.entity_map.get("[PERSON_3]") == "Max Mustermann"
+        assert processed_data.entity_map.get("[PERSON_0]") == "Emma Schmidt"
+        assert processed_data.entity_map.get("[PERSON_1]") == "Mustermann"
+        assert processed_data.entity_map.get("[PERSON_2]") == "Re"
+
+        assert de_prompt == deanonymized_text
 
 
-def test_process_data_no_entities(inconnu_en):
-    text = "The quick brown fox jumps over the lazy dog."
-
-    result = inconnu_en.process_data(text=text)
-
-    assert result.pseudonymized_text == text
-    assert len(result.entity_map) == 0
-
-
-@pytest.mark.skip(reason="Not implemented yet")
-def test_process_data_max_length(inconnu_en):
-    text = "a" * 501  # Exceeds max_text_length of 500
-
-    with pytest.raises(ValueError, match="Text exceeds maximum length of 500"):
-        inconnu_en.process_data(text=text)
-
-
-def test_process_data_multiple_entities(inconnu_en):
-    text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
-
-    result = inconnu_en.process_data(text=text)
-
-    assert result.entity_map["[DATE_1]"] == "last summer"
-    assert result.entity_map["[DATE_0]"] == "March"
-
-    assert result.entity_map["[PERSON_0]"] == "Jane Smith"
-    assert result.entity_map["[PERSON_1]"] == "John Doe"
-
-    assert result.entity_map["[GPE_1]"] == "California"
-    assert result.entity_map["[GPE_3]"] == "New York"
-    assert result.entity_map["[GPE_2]"] == "Paris"
-    assert result.entity_map["[GPE_0]"] == "Tokyo"
-    assert len(result.entity_map) == 8
-
-
-def test_process_data_no_pseudonymization(inconnu_en):
-    inconnu_en.config.pseudonymize_entities = False
-    text = "John Doe visited New York."
-
-    result = inconnu_en.process_data(text=text)
-
-    assert result.pseudonymized_text == ""
-    assert len(result.entity_map) == 0
-    assert not result.pseudonymized
-    assert result.text == text
-
-
-def test_process_data_hashing(inconnu_en):
-    text = "John Doe visited New York."
-
-    result = inconnu_en.process_data(text=text)
-
-    assert result.hashed_id.isalnum()  # Should be alphanumeric
-    assert len(result.hashed_id) == 64  # SHA-256 hash length
-
-
-def test_process_data_timestamp(inconnu_en):
-    text = "John Doe visited New York."
-
-    result = inconnu_en.process_data(text=text)
-
-    assert result.timestamp is not None
-    assert len(result.timestamp) > 0
-
-
-def test_deanonymization(inconnu_en):
-    text = "John Doe visited New York last summer."
-
-    result = inconnu_en.process_data(text=text)
-
-    deanonymized = inconnu_en.pseudonymizer.deanonymize(
-        text=result.pseudonymized_text,
-        entity_map=result.entity_map,
+class TestInconnuAnonymizer:
+    @pytest.mark.parametrize(
+        "text, expected_anonymized_text",
+        [
+            (
+                "John Doe visited New York last summer.",
+                "[PERSON] visited [GPE] [DATE].",
+            ),
+            ("John Doe visited New York.", "[PERSON] visited [GPE]."),
+            (
+                "Michael Brown and Lisa White saw a movie in San Francisco yesterday.",
+                "[PERSON] and [PERSON] saw a movie in [GPE] [DATE].",
+            ),
+            (
+                "Dr. Alice Johnson gave a lecture in London last week.",
+                "[PERSON] gave a lecture in [GPE] [DATE].",
+            ),
+            (
+                "Jane Smith attended a conference in Tokyo in March.",
+                "[PERSON] attended a conference in [GPE] in [DATE].",
+            ),
+        ],
     )
-    assert deanonymized == text
+    def test_basic_anonymization(self, inconnu_en, text, expected_anonymized_text):
+        processed_data = inconnu_en(text=text, deanonymize=False)
 
+        assert processed_data.redacted_text == expected_anonymized_text
+        assert processed_data.text_length == len(text)
 
-def test_deanonymization_multiple_entities(
-    inconnu_en, multiple_entities_text, structured_output
-):
-    result = inconnu_en.process_data(text=multiple_entities_text)
+    def test_process_data_no_entities(self, inconnu_en):
+        text = "The quick brown fox jumps over the lazy dog."
 
-    deanonymized = inconnu_en.pseudonymizer.deanonymize(
-        text=json.dumps(structured_output),
-        entity_map=result.entity_map,
-    )
+        result = inconnu_en(text=text)
 
-    assert json.loads(deanonymized) == [
-        {
-            "Person": "John Doe",
-            "Origin": "New York",
-            "Event": "Visit",
-            "Location": "Paris",
-            "Date": "last summer",
-        },
-        {
-            "Person": "Jane Smith",
-            "Origin": "California",
-            "Event": "Conference Attendance",
-            "Location": "Tokyo",
-            "Date": "March",
-        },
-        {
-            "Person": "Dr. Alice Johnson",
-            "Origin": "Texas",
-            "Event": "Lecture",
-            "Location": "London",
-            "Date": "last week",
-        },
-    ]
+        assert result.redacted_text == text
 
+    def test_process_data_multiple_entities(self, inconnu_en):
+        text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
 
-def test_prompt_processing_time(inconnu_en, en_prompt):
-    result = inconnu_en.process_data(text=en_prompt)
+        result = inconnu_en(text=text, deanonymize=False)
 
-    # Processing time should be less than 200ms
-    assert 0 < result.processing_time_ms < 200
+        # Date
+        assert "last summer" not in result.redacted_text
+        assert "March" not in result.redacted_text
 
+        # Person
+        assert "Jane Smith" not in result.redacted_text
+        assert "John Doe" not in result.redacted_text
 
-def test_de_prompt(inconnu_de, de_prompt):
-    result = inconnu_de.process_data(text=de_prompt)
+        # GPE (Location)
+        assert "California" not in result.redacted_text
+        assert "New York" not in result.redacted_text
+        assert "Paris" not in result.redacted_text
+        assert "Tokyo" not in result.redacted_text
 
-    deanonymized = inconnu_de.pseudonymizer.deanonymize(
-        text=result.pseudonymized_text,
-        entity_map=result.entity_map,
-    )
+    def test_process_data_hashing(self, inconnu_en):
+        text = "John Doe visited New York."
 
-    # Custom NER components
-    assert result.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
-    assert result.entity_map.get("[PHONE_NUMBER_0]") == "+49 30 9876543"
-    assert result.entity_map.get("[PHONE_NUMBER_1]") == "+49 89 1234567"
+        processed_data = inconnu_en(text=text)
 
-    assert result.entity_map.get("[PERSON_3]") == "Max Mustermann"
-    assert result.entity_map.get("[PERSON_0]") == "Emma Schmidt"
-    assert result.entity_map.get("[PERSON_1]") == "Mustermann"
-    assert result.entity_map.get("[PERSON_2]") == "Re"
+        assert processed_data.hashed_id.isalnum()  # Should be alphanumeric
+        assert len(processed_data.hashed_id) == 64  # SHA-256 hash length
 
-    assert de_prompt == deanonymized
+    def test_process_data_timestamp(self, inconnu_en):
+        text = "John Doe visited New York."
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.timestamp is not None
+        assert len(processed_data.timestamp) > 0
+
+    def test_prompt_processing_time(self, inconnu_en, en_prompt):
+        result = inconnu_en(text=en_prompt)
+
+        # Processing time should be less than 200ms
+        assert 0 < result.processing_time_ms < 200
+
+    def test_de_prompt(self, inconnu_de, de_prompt):
+        processed_data = inconnu_de(text=de_prompt)
+
+        # Custom NER components
+        assert "emma.schmidt@solartech.de" not in processed_data.redacted_text
+        assert "+49 30 9876543" not in processed_data.redacted_text
+        assert "+49 89 1234567" not in processed_data.redacted_text
+
+        assert "Reinhard Müller" not in processed_data.redacted_text
+        assert "Max Mustermann" not in processed_data.redacted_text
+        assert "Emma Schmidt" not in processed_data.redacted_text
