@@ -5,7 +5,7 @@ from spacy import load
 from spacy.tokens import Doc, Span
 
 from inconnu.nlp.interfaces import ProcessedData
-from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE
+from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
 from inconnu.nlp.utils import (
     EntityLabel,
     create_ner_component,
@@ -62,6 +62,7 @@ def person_with_title(doc: Doc) -> Doc:
 custom_ner_components = [
     {"processing_func": person_with_title, "label": EntityLabel.PERSON},
     {"pattern": EMAIL_ADDRESS_PATTERN_RE, "label": EntityLabel.EMAIL},
+    {"pattern": IBAN_PATTERN_RE, "label": EntityLabel.IBAN},
     {
         "processing_func": process_phone_number,
         "label": EntityLabel.PHONE_NUMBER,

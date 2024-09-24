@@ -281,3 +281,20 @@ class TestInconnuAnonymizer:
         assert "Reinhard Müller" not in processed_data.redacted_text
         assert "Max Mustermann" not in processed_data.redacted_text
         assert "Emma Schmidt" not in processed_data.redacted_text
+
+    def test_iban_entities(self, inconnu_en):
+        text = """
+        Hi,
+
+        I would like to update my SEPA bank details for future payments for my contract with the number 021948. Please update my account with the following information:
+
+        Account Holder Name: Max Mustermann
+        Bank: DEUTSCHE KREDITBANK BERLIN
+        IBAN: DE02120300000000202051
+
+        Kindly confirm once these details have been updated in your system. Should you need further information, please feel free to contact me.
+        """
+
+        processed_data = inconnu_en(text=text)
+
+        assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"

@@ -31,6 +31,7 @@ class EntityLabel(StrEnum):
     DATE = "DATE"
     NORP = "NORP"
     MISC = "MISC"  # misc for DE language“
+    IBAN = "IBAN"  # custom ner component
     LAW = "LAW"
     LOC = "LOC"
     ORG = "ORG"

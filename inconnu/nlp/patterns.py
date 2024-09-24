@@ -68,6 +68,9 @@ EMAIL_HEAD_PATTERN = (
 )
 EMAIL_HEAD_RE = re.compile(EMAIL_HEAD_PATTERN)
 
+IBAN_PATTERN = r"\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]{1,4}){1,7}\b"
+IBAN_PATTERN_RE = re.compile(IBAN_PATTERN)
+
 # Helps split text by paragraphs. There must be one newline, with potential whitespace
 # (incluing \r and \n chars) on either side
 PARAGRAPH_PATTERN = r"\s*\n\s*"
