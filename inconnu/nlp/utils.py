@@ -18,7 +18,8 @@ def singleton(cls):
     return get_instance_by_language
 
 
-# NER labels to randomize
+# https://github.com/explosion/spaCy/discussions/9147
+# NER labels to identify entities
 class EntityLabel(StrEnum):
     PHONE_NUMBER = "PHONE_NUMBER"  # custom ner component
     WORK_OF_ART = "WORK_OF_ART"

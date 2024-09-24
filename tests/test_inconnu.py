@@ -282,7 +282,7 @@ class TestInconnuAnonymizer:
         assert "Max Mustermann" not in processed_data.redacted_text
         assert "Emma Schmidt" not in processed_data.redacted_text
 
-    def test_iban_entities(self, inconnu_en):
+    def test_iban_entities_en(self, inconnu_en):
         text = """
         Hi,
 
@@ -296,5 +296,22 @@ class TestInconnuAnonymizer:
         """
 
         processed_data = inconnu_en(text=text)
+
+        assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
+
+    def test_iban_entities_de(self, inconnu_de):
+        text = """
+        Guten Tag!
+
+        ich möchte meine SEPA-Bankverbindung für zukünftige Zahlungen für meinen Vertrag mit der Nummer 021948 aktualisieren. Bitte aktualisieren Sie mein Konto mit den folgenden Informationen:
+
+        Name des Kontoinhabers: Max Mustermann
+        Bank: DEUTSCHE KREDITBANK BERLIN
+        IBAN: DE02120300000000202051
+
+        Bitte bestätigen Sie, sobald diese Angaben in Ihrem System aktualisiert wurden. Sollten Sie weitere Informationen benötigen, können Sie mich gerne kontaktieren.
+        """
+
+        processed_data = inconnu_de(text=text)
 
         assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
