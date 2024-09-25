@@ -59,7 +59,7 @@ def person_with_title(doc: Doc) -> Doc:
     return doc
 
 
-# NER components that should be added before the default NER component
+# NER components that should be added BEFORE the default NER component
 # This is to ensure that the custom NER components are not overridden by the default NER component
 # DE: The default NER component is 'de_core_news_md' which has a rule for 'PER' but it's not very good
 # DE: Has a rule for 'MISC' which maps IBANs to 'MISC'
@@ -72,7 +72,7 @@ custom_ner_components_before = [
     },
 ]
 
-# NER components that should be added after the default NER component
+# NER components that should be added AFTER the default NER component
 # Person titles should be added after the default NER component to avoid being overridden.
 # We leverage the default NER component for the 'PER' label to get better results.
 custom_ner_components_after = [
@@ -80,13 +80,16 @@ custom_ner_components_after = [
 ]
 
 
-# Spacy pipeline for entity pseudonymization
+# Spacy pipeline for entity redacting
 @singleton
 class EntityRedactor:
     __slots__ = ["nlp"]
 
     def __init__(self, language: str = "en"):
-        # Disable everything except for NER
+        # Performance optimization: Load spaCy model only once per language
+        # Loading spaCy models is an expensive operation in terms of time and memory
+        # By using the singleton pattern, we ensure that we only load the model once per language
+        # This significantly reduces initialization time for subsequent calls
         self.nlp = load(
             SpacyModels.DE_CORE_NEWS_MD
             if language == "de"
@@ -97,9 +100,11 @@ class EntityRedactor:
                 "tok2vec",
                 "tagger",
                 "parser",
-            ],
+            ],  # Disable everything except the NER component
         )
 
+        # Add custom NER components to the pipeline
+        # These components are added only once per language, improving overall efficiency
         for custom_ner_component in custom_ner_components_before:
             custom_ner_component_name = create_ner_component(**custom_ner_component)
             self.nlp.add_pipe(custom_ner_component_name, before="ner")

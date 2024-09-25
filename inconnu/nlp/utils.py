@@ -1,19 +1,32 @@
-from collections import defaultdict
 from enum import StrEnum
+from functools import wraps
 from re import Pattern
+from threading import Lock
 
 from spacy.language import Language, PipeCallable
 from spacy.tokens import Doc, Span
 
+# Global dictionaries to store global lock and instances
+global_lock = Lock()
+instances = {}
+
 
 def singleton(cls):
-    instances = defaultdict(dict)
+    @wraps(cls)
+    def get_instance_by_language(*args, **kwargs) -> "cls":
+        language: str | None = kwargs.get("language")
+        key = (cls, language)
 
-    def get_instance_by_language(*args, **kwargs):
-        language = kwargs.get("language")
-        if language not in instances[cls]:
-            instances[cls][language] = cls(*args, **kwargs)
-        return instances[cls][language]
+        ## Double-checked locking pattern
+        # Initial check without acquiring the lock (fast path)
+        if key in instances:
+            return instances[key]
+
+        with global_lock:
+            # Second check after acquiring the lock (slow path)
+            if key not in instances:
+                instances[key] = cls(*args, **kwargs)
+        return instances[key]
 
     return get_instance_by_language
 
