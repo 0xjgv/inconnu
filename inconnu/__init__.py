@@ -1,22 +1,28 @@
 import hashlib
 import time
 from datetime import datetime
+from typing import Any, Dict, List
 
 from inconnu.config import Config
 from inconnu.nlp.entity_redactor import EntityRedactor
-from inconnu.nlp.interfaces import ProcessedData
+from inconnu.nlp.interfaces import NERComponent, ProcessedData
 
 
 class Inconnu:
-    __slots__ = ["entity_redactor", "deanonymize", "config"]
+    __slots__ = ["entity_redactor", "deanonymize", "config", "add_custom_components"]
 
     def __init__(
         self,
         *,
+        custom_components: list[NERComponent] | None = None,
         config: Config,
         language: str,
     ):
-        self.entity_redactor = EntityRedactor(language=language)
+        self.entity_redactor = EntityRedactor(
+            custom_components=custom_components,
+            language=language,
+        )
+        self.add_custom_components = self.entity_redactor.add_custom_components
         self.deanonymize = self.entity_redactor.deanonymize
         self.config = config
 

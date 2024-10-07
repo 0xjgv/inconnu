@@ -1,4 +1,8 @@
 from dataclasses import dataclass
+from re import Pattern
+from typing import Callable, NamedTuple
+
+from spacy.tokens import Doc
 
 
 @dataclass
@@ -10,3 +14,10 @@ class ProcessedData:
     text_length: int
     timestamp: str
     hashed_id: str
+
+
+class NERComponent(NamedTuple):
+    label: str
+    processing_func: Callable[[Doc], Doc] | None = None
+    pattern: Pattern | None = None
+    before_ner: bool = True

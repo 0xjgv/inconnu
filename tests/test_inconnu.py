@@ -1,10 +1,12 @@
 import json
 from pathlib import Path
+from re import compile
 
 import pytest
 
 from inconnu import Inconnu
 from inconnu.config import Config
+from inconnu.nlp.interfaces import NERComponent
 
 MOCKS_PATH = Path("tests/mocks")
 
@@ -315,3 +317,46 @@ class TestInconnuAnonymizer:
         processed_data = inconnu_de(text=text)
 
         assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
+
+    def test_iban_entities_custom_component(self):
+        text = """
+        Hi,
+
+        ich möchte meine SEPA-Bankverbindung für zukünftige Zahlungen für meinen Vertrag mit der Nummer 021948 aktualisieren. Bitte aktualisieren Sie mein Konto mit den folgenden Informationen:
+
+        Name des Kontoinhabers: Max Mustermann
+        Bank: DEUTSCHE KREDITBANK BERLIN
+        IBAN: DE02120300000000202051
+
+        Bitte bestätigen Sie, sobald diese Angaben in Ihrem System aktualisiert wurden. Sollten Sie weitere Informationen benötigen, können Sie mich gerne kontaktieren.
+        """
+        inconnu = Inconnu(
+            config=Config(
+                data_retention_days=30,
+                max_text_length=75_000,
+            ),
+            language="de",
+        )
+
+        inconnu.add_custom_components(
+            [
+                NERComponent(
+                    pattern=compile(r"SEPA-[\w]+"),
+                    label="TRANSACTION_TYPE",
+                    before_ner=True,
+                ),
+                NERComponent(
+                    pattern=compile(r"Nummer[:]?\s*(\d+)"),
+                    label="CONTRACT_NUMBER",
+                    before_ner=True,
+                ),
+            ]
+        )
+
+        processed_data = inconnu(text=text)
+
+        assert processed_data.entity_map.get("[CONTRACT_NUMBER_0]") == "Nummer 021948"
+        assert (
+            processed_data.entity_map.get("[TRANSACTION_TYPE_0]")
+            == "SEPA-Bankverbindung"
+        )

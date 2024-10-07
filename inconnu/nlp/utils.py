@@ -2,8 +2,9 @@ from enum import StrEnum
 from functools import wraps
 from re import Pattern
 from threading import Lock
+from typing import Callable
 
-from spacy.language import Language, PipeCallable
+from spacy.language import Language
 from spacy.tokens import Doc, Span
 
 # Global dictionaries to store global lock and instances
@@ -33,7 +34,7 @@ def singleton(cls):
 
 # https://github.com/explosion/spaCy/discussions/9147
 # NER labels to identify entities
-class EntityLabel(StrEnum):
+class DefaultEntityLabel(StrEnum):
     PHONE_NUMBER = "PHONE_NUMBER"  # custom ner component
     WORK_OF_ART = "WORK_OF_ART"
     LANGUAGE = "LANGUAGE"
@@ -69,9 +70,10 @@ def filter_overlapping_spans(spans):
 
 def create_ner_component(
     *,
-    processing_func: PipeCallable | None = None,
+    processing_func: Callable[[Doc], Doc] | None = None,
     pattern: Pattern | None = None,
-    label: EntityLabel,
+    label: DefaultEntityLabel,
+    **kwargs,
 ) -> str:
     custom_ner_component_name = f"{label.lower()}_ner_component"
 

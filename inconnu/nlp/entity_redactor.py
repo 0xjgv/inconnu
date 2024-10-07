@@ -4,10 +4,10 @@ from phonenumbers import PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
-from inconnu.nlp.interfaces import ProcessedData
+from inconnu.nlp.interfaces import NERComponent, ProcessedData
 from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
 from inconnu.nlp.utils import (
-    EntityLabel,
+    DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
     singleton,
@@ -33,7 +33,9 @@ def process_phone_number(doc: Doc) -> Doc:
             span = doc.char_span(match.start, match.end)
             if span and span not in seen_spans:
                 spans.append(
-                    Span(doc, span.start, span.end, label=EntityLabel.PHONE_NUMBER)
+                    Span(
+                        doc, span.start, span.end, label=DefaultEntityLabel.PHONE_NUMBER
+                    )
                 )
                 seen_spans.add(span)
 
@@ -48,10 +50,14 @@ def person_with_title(doc: Doc) -> Doc:
         if ent.label_.startswith("PER") and ent.start != 0:
             prev_token = doc[ent.start - 1]
             if prev_token.text in ("Dr", "Dr.", "Mr", "Mr.", "Ms", "Ms."):
-                person_ent = Span(doc, ent.start - 1, ent.end, label=EntityLabel.PERSON)
+                person_ent = Span(
+                    doc, ent.start - 1, ent.end, label=DefaultEntityLabel.PERSON
+                )
                 ents.append(person_ent)
             else:
-                person_ent = Span(doc, ent.start, ent.end, label=EntityLabel.PERSON)
+                person_ent = Span(
+                    doc, ent.start, ent.end, label=DefaultEntityLabel.PERSON
+                )
                 ents.append(person_ent)
         else:
             ents.append(ent)
@@ -63,20 +69,30 @@ def person_with_title(doc: Doc) -> Doc:
 # This is to ensure that the custom NER components are not overridden by the default NER component
 # DE: The default NER component is 'de_core_news_md' which has a rule for 'PER' but it's not very good
 # DE: Has a rule for 'MISC' which maps IBANs to 'MISC'
-custom_ner_components_before = [
-    {"pattern": EMAIL_ADDRESS_PATTERN_RE, "label": EntityLabel.EMAIL},
-    {"pattern": IBAN_PATTERN_RE, "label": EntityLabel.IBAN},
-    {
-        "processing_func": process_phone_number,
-        "label": EntityLabel.PHONE_NUMBER,
-    },
+DEFAULT_CUSTOM_NER_COMPONENTS_BEFORE = [
+    NERComponent(
+        processing_func=process_phone_number,
+        label=DefaultEntityLabel.PHONE_NUMBER,
+    ),
+    NERComponent(
+        pattern=EMAIL_ADDRESS_PATTERN_RE,
+        label=DefaultEntityLabel.EMAIL,
+    ),
+    NERComponent(
+        pattern=IBAN_PATTERN_RE,
+        label=DefaultEntityLabel.IBAN,
+    ),
 ]
 
 # NER components that should be added AFTER the default NER component
 # Person titles should be added after the default NER component to avoid being overridden.
 # We leverage the default NER component for the 'PER' label to get better results.
-custom_ner_components_after = [
-    {"processing_func": person_with_title, "label": EntityLabel.PERSON},
+DEFAULT_CUSTOM_NER_COMPONENTS_AFTER = [
+    NERComponent(
+        before_ner=False,  # defaults to True
+        processing_func=person_with_title,
+        label=DefaultEntityLabel.PERSON,
+    ),
 ]
 
 
@@ -85,7 +101,12 @@ custom_ner_components_after = [
 class EntityRedactor:
     __slots__ = ["nlp"]
 
-    def __init__(self, language: str = "en"):
+    def __init__(
+        self,
+        *,
+        custom_components: list[NERComponent] | None = None,
+        language: str = "en",
+    ):
         # Performance optimization: Load spaCy model only once per language
         # Loading spaCy models is an expensive operation in terms of time and memory
         # By using the singleton pattern, we ensure that we only load the model once per language
@@ -102,16 +123,23 @@ class EntityRedactor:
                 "parser",
             ],  # Disable everything except the NER component
         )
+        self.add_custom_components(
+            [
+                *DEFAULT_CUSTOM_NER_COMPONENTS_BEFORE,
+                *DEFAULT_CUSTOM_NER_COMPONENTS_AFTER,
+            ]
+        )
 
-        # Add custom NER components to the pipeline
-        # These components are added only once per language, improving overall efficiency
-        for custom_ner_component in custom_ner_components_before:
-            custom_ner_component_name = create_ner_component(**custom_ner_component)
-            self.nlp.add_pipe(custom_ner_component_name, before="ner")
+        if custom_components:
+            self.add_custom_components(custom_components)
 
-        for custom_ner_component in custom_ner_components_after:
-            custom_ner_component_name = create_ner_component(**custom_ner_component)
-            self.nlp.add_pipe(custom_ner_component_name, after="ner")
+    def add_custom_components(self, components: list[NERComponent]):
+        for component in components:
+            custom_ner_component_name = create_ner_component(**component._asdict())
+            if component.before_ner:
+                self.nlp.add_pipe(custom_ner_component_name, before="ner")
+            else:
+                self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
     def redact(
         self, *, text: str, deanonymize: bool = True
@@ -120,11 +148,8 @@ class EntityRedactor:
         doc = self.nlp(text)
         entity_map = {}
 
-        filtered_ents = filter(
-            lambda ent: ent.label_ in EntityLabel.__members__, doc.ents
-        )
         # Process in reverse to avoid index issues
-        for ent in reversed(list(filtered_ents)):
+        for ent in reversed(doc.ents):
             if ent.label_ not in entity_map:
                 entity_map[ent.label_] = []
 
