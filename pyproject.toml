@@ -1,9 +1,13 @@
 [tool.poetry]
 name = "inconnu"
 version = "0.1.0"
-description = ""
+description = "Entity redaction and deanonymization"
 authors = ["Juan <juans.gaitan@gmail.com>"]
 readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/0xjgv/inconnu"
+repository = "https://github.com/0xjgv/inconnu"
+keywords = ["entity-redaction", "deanonymization", "data-privacy", "nlp", "spacy"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
