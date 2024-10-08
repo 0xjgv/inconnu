@@ -318,7 +318,7 @@ class TestInconnuAnonymizer:
 
         assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
 
-    def test_iban_entities_custom_component(self):
+    def test_entities_custom_component(self):
         text = """
         Hi,
 

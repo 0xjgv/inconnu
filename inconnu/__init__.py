@@ -1,7 +1,6 @@
 import hashlib
 import time
 from datetime import datetime
-from typing import Any, Dict, List
 
 from inconnu.config import Config
 from inconnu.nlp.entity_redactor import EntityRedactor

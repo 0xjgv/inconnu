@@ -10,7 +10,6 @@ from inconnu.nlp.utils import (
     DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
-    singleton,
 )
 
 
@@ -97,7 +96,7 @@ DEFAULT_CUSTOM_NER_COMPONENTS_AFTER = [
 
 
 # Spacy pipeline for entity redacting
-@singleton
+# @singleton
 class EntityRedactor:
     __slots__ = ["nlp"]
 
