@@ -38,7 +38,7 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 3. **Download required NLP models**:
    ```bash
-   make model-install
+   make model-en    # English model (default)
    ```
 
 4. **Verify installation**:
@@ -77,11 +77,25 @@ uv run python -m spacy download en_core_web_lg
 uv run python -m spacy download en_core_web_trf
 ```
 
-#### German Models
+#### Additional Language Models
 ```bash
-# Small German model
+# German model
+make model-de
 uv run python -m spacy download de_core_news_sm
 
+# Italian model  
+make model-it
+uv run python -m spacy download it_core_news_sm
+
+# Spanish model
+make model-es
+uv run python -m spacy download es_core_news_sm
+
+# French model
+make model-fr
+uv run python -m spacy download fr_core_news_sm
+
+# For enhanced accuracy (manual installation)
 # Medium German model - better accuracy
 uv run python -m spacy download de_core_news_md
 
@@ -118,7 +132,11 @@ For more models, visit the [spaCy Models Directory](https://spacy.io/models).
 ```bash
 # Development workflow
 make install          # Install all dependencies
-make model-install    # Download required spaCy models
+make model-en         # Download English spaCy model
+make model-de         # Download German spaCy model
+make model-it         # Download Italian spaCy model
+make model-es         # Download Spanish spaCy model
+make model-fr         # Download French spaCy model
 make test            # Run full test suite
 make lint            # Check code with ruff
 make format          # Format code with ruff
@@ -311,7 +329,7 @@ Prepare training datasets for machine learning models by removing personal ident
 - **Standard Entities**: PERSON, GPE (locations), DATE, ORG, MONEY
 - **Custom Entities**: EMAIL, IBAN, PHONE_NUMBER
 - **Enhanced Detection**: Person titles (Dr, Mr, Ms), international phone numbers
-- **Multilingual**: English and German language support
+- **Multilingual**: English, German, Italian, Spanish, and French language support
 
 ## Features
 
