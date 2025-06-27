@@ -20,7 +20,7 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 ### Prerequisites
 
-- Python 3.13 or higher
+- Python 3.9 or higher
 - UV package manager (recommended) or pip
 
 ### Quick Start
@@ -149,24 +149,54 @@ uv run pytest tests/test_inconnu.py::TestInconnuPseudonymizer -vv
 
 ```python
 from inconnu import Inconnu
-from inconnu.config import Config
 
-# Initialize Inconnu
-config = Config(
-    data_retention_days=30,
-    max_text_length=75_000,
-)
-inconnu = Inconnu(config=config, language="en")
+# Simple initialization - no Config class required!
+inconnu = Inconnu()  # Uses sensible defaults
 
-# Process text
+# Simple anonymization - just the redacted text
 text = "John Doe from New York visited Paris last summer."
-result = inconnu(text=text)
+redacted = inconnu.redact(text)
+print(redacted)
+# Output: "[PERSON] from [GPE] visited [GPE] [DATE]."
 
-print(result.redacted_text)
+# Pseudonymization - get both redacted text and entity mapping
+redacted_text, entity_map = inconnu.pseudonymize(text)
+print(redacted_text)
 # Output: "[PERSON_0] from [GPE_0] visited [GPE_1] [DATE_0]."
-
-print(result.entity_map)
+print(entity_map)
 # Output: {'[PERSON_0]': 'John Doe', '[GPE_0]': 'New York', '[GPE_1]': 'Paris', '[DATE_0]': 'last summer'}
+
+# Advanced usage with full metadata (original API)
+result = inconnu(text=text)
+print(result.redacted_text)
+print(f"Processing time: {result.processing_time_ms:.2f}ms")
+```
+
+### Async and Batch Processing
+
+```python
+import asyncio
+
+# Async processing for non-blocking operations
+async def process_texts():
+    inconnu = Inconnu()
+    
+    # Single async processing
+    text = "John Doe called from +1-555-123-4567"
+    redacted = await inconnu.redact_async(text)
+    print(redacted)  # "[PERSON] called from [PHONE_NUMBER]"
+    
+    # Batch async processing
+    texts = [
+        "Alice Smith visited Berlin",
+        "Bob Jones went to Tokyo", 
+        "Carol Brown lives in Paris"
+    ]
+    results = await inconnu.redact_batch_async(texts)
+    for result in results:
+        print(result)
+
+asyncio.run(process_texts())
 ```
 
 ### Customer Service Email Processing
@@ -184,27 +214,28 @@ Best regards,
 Max Mustermann
 """
 
-result = inconnu(text=customer_email)
-print(result.redacted_text)
+# Simple redaction
+redacted = inconnu.redact(customer_email)
+print(redacted)
 # Personal identifiers are automatically detected and redacted
 ```
 
 ### Multi-language Support
 
 ```python
-# German language processing
-inconnu_de = Inconnu(config=config, language="de")
+# German language processing - simplified!
+inconnu_de = Inconnu("de")  # Just specify the language
 
 german_text = "Herr Schmidt aus München besuchte Berlin im März."
-result = inconnu_de(text=german_text)
-print(result.redacted_text)
-# Output: "[PERSON_0] aus [GPE_0] besuchte [GPE_1] [DATE_0]."
+redacted = inconnu_de.redact(german_text)
+print(redacted)
+# Output: "[PERSON] aus [GPE] besuchte [GPE] [DATE]."
 ```
 
 ### Custom Entity Recognition
 
 ```python
-from inconnu.nlp.interfaces import NERComponent
+from inconnu import Inconnu, NERComponent
 import re
 
 # Add custom entity recognition
@@ -216,11 +247,43 @@ custom_components = [
     )
 ]
 
+# Simple initialization with custom components
 inconnu_custom = Inconnu(
-    config=config,
     language="en",
     custom_components=custom_components
 )
+
+# Test custom entity detection
+text = "My card number is 1234 5678 9012 3456"
+redacted = inconnu_custom.redact(text)
+print(redacted)  # "My card number is [CREDIT_CARD]"
+```
+
+### Context Manager for Resource Management
+
+```python
+# Automatic resource cleanup
+with Inconnu() as inc:
+    redacted = inc.redact("Sensitive data about John Doe")
+    print(redacted)
+# Resources automatically cleaned up
+```
+
+### Error Handling
+
+```python
+from inconnu import Inconnu, TextTooLongError, ProcessingError
+
+inconnu = Inconnu(max_text_length=100)  # Set small limit for demo
+
+try:
+    long_text = "x" * 200  # Exceeds limit
+    result = inconnu.redact(long_text)
+except TextTooLongError as e:
+    print(f"Text too long: {e}")
+    # Error includes helpful suggestions for resolution
+except ProcessingError as e:
+    print(f"Processing failed: {e}")
 ```
 
 ## Use Cases
