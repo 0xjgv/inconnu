@@ -10,6 +10,7 @@ from .utils import (
     DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
+    singleton,
 )
 
 
@@ -45,7 +46,21 @@ def process_phone_number(doc: Doc) -> Doc:
 
 def person_with_title(doc: Doc) -> Doc:
     ents = []
-    pronouns = {"ich", "du", "er", "sie", "wir", "ihr", "ihnen", "ihre", "mich", "dich", "ihm", "sein", "uns"}
+    pronouns = {
+        "ich",
+        "du",
+        "er",
+        "sie",
+        "wir",
+        "ihr",
+        "ihnen",
+        "ihre",
+        "mich",
+        "dich",
+        "ihm",
+        "sein",
+        "uns",
+    }
     for ent in doc.ents:
         if ent.label_.startswith("PER"):
             # Discard spans that contain any pronoun tokens – they are very
@@ -112,7 +127,7 @@ DEFAULT_CUSTOM_NER_COMPONENTS_AFTER = [
 
 
 # Spacy pipeline for entity redacting
-# @singleton
+@singleton
 class EntityRedactor:
     __slots__ = ["nlp"]
 

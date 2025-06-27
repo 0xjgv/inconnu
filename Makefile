@@ -4,9 +4,23 @@ install:
 activate:
 	uv venv
 
-model-install:
+install-pip:
 	uv pip install pip --upgrade
+
+model-en: install-pip
 	uv run python -m spacy download en_core_web_sm
+
+model-de: install-pip
+	uv run python -m spacy download de_core_news_sm
+
+model-it: install-pip
+	uv run python -m spacy download it_core_news_sm
+
+model-es: install-pip
+	uv run python -m spacy download es_core_news_sm
+
+model-fr: install-pip
+	uv run python -m spacy download fr_core_news_sm
 
 update-deps:
 	uv update

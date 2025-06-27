@@ -20,11 +20,22 @@ def inconnu_en() -> Inconnu:
 
 
 @pytest.fixture
+def inconnu_de() -> Inconnu:
+    return Inconnu(
+        config=Config(
+            data_retention_days=30,
+            max_text_length=10_000,
+        ),
+        language="de",
+    )
+
+
+@pytest.fixture
 def inconnu_it() -> Inconnu:
     return Inconnu(
         config=Config(
             data_retention_days=30,
-            max_text_length=75_000,
+            max_text_length=10_000,
         ),
         language="it",
     )
@@ -162,10 +173,10 @@ class TestInconnuPseudonymizer:
         # Processing time should be less than 200ms
         assert 0 < processed_data.processing_time_ms < 200
 
-    def test_it_prompt(self, inconnu_it, de_prompt):
-        processed_data = inconnu_it(text=de_prompt)
+    def test_de_prompt(self, inconnu_de, de_prompt):
+        processed_data = inconnu_de(text=de_prompt)
 
-        deanonymized_text = inconnu_it.deanonymize(processed_data=processed_data)
+        deanonymized_text = inconnu_de.deanonymize(processed_data=processed_data)
 
         # Custom NER components
         assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
@@ -257,8 +268,8 @@ class TestInconnuAnonymizer:
         # Processing time should be less than 200ms
         assert 0 < result.processing_time_ms < 200
 
-    def test_it_prompt(self, inconnu_it, de_prompt):
-        processed_data = inconnu_it(text=de_prompt)
+    def test_de_prompt(self, inconnu_de, de_prompt):
+        processed_data = inconnu_de(text=de_prompt)
 
         # Custom NER components
         assert "emma.schmidt@solartech.de" not in processed_data.redacted_text
@@ -318,7 +329,7 @@ class TestInconnuAnonymizer:
         inconnu = Inconnu(
             config=Config(
                 data_retention_days=30,
-                max_text_length=75_000,
+                max_text_length=5_000,
             ),
             language="it",
         )
@@ -326,12 +337,12 @@ class TestInconnuAnonymizer:
         inconnu.add_custom_components(
             [
                 NERComponent(
-                    pattern=compile(r"SEPA-[\w]+"),
+                    pattern=compile(r"SEPA[-\w]*"),
                     label="TRANSACTION_TYPE",
                     before_ner=True,
                 ),
                 NERComponent(
-                    pattern=compile(r"Nummer[:]?\s*(\d+)"),
+                    pattern=compile(r"numero[:]?\s*(?:\d+)"),
                     label="CONTRACT_NUMBER",
                     before_ner=True,
                 ),
@@ -340,5 +351,5 @@ class TestInconnuAnonymizer:
 
         processed_data = inconnu(text=text)
 
-        assert processed_data.entity_map.get("[CONTRACT_NUMBER_0]") == "021948"
+        assert processed_data.entity_map.get("[CONTRACT_NUMBER_0]") == "numero 021948"
         assert processed_data.entity_map.get("[TRANSACTION_TYPE_0]") == "SEPA"
