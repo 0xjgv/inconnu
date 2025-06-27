@@ -1,35 +1,31 @@
-[tool.poetry]
+[project]
 name = "inconnu"
 version = "0.1.0"
 description = "Entity redaction and deanonymization"
-authors = ["Juan <juans.gaitan@gmail.com>"]
 readme = "README.md"
-license = "MIT"
-homepage = "https://github.com/0xjgv/inconnu"
-repository = "https://github.com/0xjgv/inconnu"
-keywords = ["entity-redaction", "deanonymization", "data-privacy", "nlp", "spacy"]
+requires-python = ">=3.13"
+dependencies = [
+    "phonenumbers>=9.0.8",
+    "spacy>=3.8.7",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-spacy = "^3.7.5"
-phonenumbers = "^8.13.40"
-en-core-web-sm = {url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl"}
-de-core-news-md = {url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_md-3.8.0/de_core_news_md-3.8.0-py3-none-any.whl"}
-
-[tool.poetry.group.dev.dependencies]
-pytest-asyncio = "^0.23.7"
-pytest = "^8.2.2"
-ruff = "^0.5.2"
-ipykernel = "^6.29.5"
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "ruff>=0.12.1",
+]
 
 [tool.ruff.lint]
 extend-select = ["I", "S"] # I: isort, S: bandit
 select = ["E4", "E7", "E9", "F"]
 ignore = ["S101"] # assert
 
-[tool.poetry.scripts]
-inconnu = "inconnu.main:lambda_handler"
-
 [build-system]
-build-backend = "poetry.core.masonry.api"
-requires = ["poetry-core"]
+requires = ["uv_build>=0.7.15,<0.8.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "inconnu"
+module-root = ""
