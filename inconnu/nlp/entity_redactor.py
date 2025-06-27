@@ -4,9 +4,9 @@ from phonenumbers import PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
-from inconnu.nlp.interfaces import NERComponent, ProcessedData
-from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
-from inconnu.nlp.utils import (
+from .interfaces import NERComponent, ProcessedData
+from .patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
+from .utils import (
     DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
@@ -16,7 +16,6 @@ from inconnu.nlp.utils import (
 class SpacyModels(StrEnum):
     # 'en_core_web_trf' is the most accurate model for name entity recognition
     EN_CORE_WEB_TRF = "en_core_web_trf"
-    DE_CORE_NEWS_MD = "de_core_news_md"
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
@@ -111,9 +110,9 @@ class EntityRedactor:
         # By using the singleton pattern, we ensure that we only load the model once per language
         # This significantly reduces initialization time for subsequent calls
         self.nlp = load(
-            SpacyModels.DE_CORE_NEWS_MD
-            if language == "de"
-            else SpacyModels.EN_CORE_WEB_SM,
+            SpacyModels.EN_CORE_WEB_SM
+            if language == "en"
+            else SpacyModels.EN_CORE_WEB_TRF,
             disable=[
                 "attribute_ruler",
                 "lemmatizer",

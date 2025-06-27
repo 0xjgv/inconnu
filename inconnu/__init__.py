@@ -3,8 +3,9 @@ import time
 from datetime import datetime
 
 from inconnu.config import Config
-from inconnu.nlp.entity_redactor import EntityRedactor
-from inconnu.nlp.interfaces import NERComponent, ProcessedData
+
+from .nlp.entity_redactor import EntityRedactor
+from .nlp.interfaces import NERComponent, ProcessedData
 
 
 class Inconnu:
