@@ -7,9 +7,6 @@ activate:
 install-pip:
 	uv pip install pip --upgrade
 
-model-en: install-pip
-	uv run python -m spacy download en_core_web_sm
-
 model-de: install-pip
 	uv run python -m spacy download de_core_news_sm
 
