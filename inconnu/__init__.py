@@ -2,8 +2,7 @@ import hashlib
 import time
 from datetime import datetime
 
-from inconnu.config import Config
-
+from .config import Config
 from .nlp.entity_redactor import EntityRedactor
 from .nlp.interfaces import NERComponent, ProcessedData
 
