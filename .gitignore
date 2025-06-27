@@ -7,4 +7,6 @@ __pycache__
 .env
 db
 
+CLAUDE.md
+.claude/
 notes.md

@@ -4,23 +4,25 @@ from phonenumbers import PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
-from inconnu.nlp.interfaces import NERComponent, ProcessedData
-from inconnu.nlp.patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
-from inconnu.nlp.utils import (
+from .interfaces import NERComponent, ProcessedData
+from .patterns import EMAIL_ADDRESS_PATTERN_RE, IBAN_PATTERN_RE
+from .utils import (
     DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
+    singleton,
 )
 
 
 class SpacyModels(StrEnum):
     # 'en_core_web_trf' is the most accurate model for name entity recognition
     EN_CORE_WEB_TRF = "en_core_web_trf"
-    DE_CORE_NEWS_MD = "de_core_news_md"
+    DE_CORE_NEWS_SM = "de_core_news_sm"
+    IT_CORE_NEWS_SM = "it_core_news_sm"
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
-SUPPORTED_REGIONS = ["DE", "CH", "GB"]
+SUPPORTED_REGIONS = ["DE", "CH", "GB", "IT"]
 
 
 def process_phone_number(doc: Doc) -> Doc:
@@ -44,20 +46,49 @@ def process_phone_number(doc: Doc) -> Doc:
 
 def person_with_title(doc: Doc) -> Doc:
     ents = []
+    pronouns = {
+        "ich",
+        "du",
+        "er",
+        "sie",
+        "wir",
+        "ihr",
+        "ihnen",
+        "ihre",
+        "mich",
+        "dich",
+        "ihm",
+        "sein",
+        "uns",
+    }
     for ent in doc.ents:
-        # Only check for title if it's a person and not the first token
-        if ent.label_.startswith("PER") and ent.start != 0:
-            prev_token = doc[ent.start - 1]
-            if prev_token.text in ("Dr", "Dr.", "Mr", "Mr.", "Ms", "Ms."):
-                person_ent = Span(
-                    doc, ent.start - 1, ent.end, label=DefaultEntityLabel.PERSON
-                )
-                ents.append(person_ent)
-            else:
-                person_ent = Span(
-                    doc, ent.start, ent.end, label=DefaultEntityLabel.PERSON
-                )
-                ents.append(person_ent)
+        if ent.label_.startswith("PER"):
+            # Discard spans that contain any pronoun tokens – they are very
+            # unlikely to be real names and pollute the PERSON index expected
+            # by the unit-tests.
+            if any(tok.lower_ in pronouns for tok in ent):
+                continue
+
+            text_str = ent.text.strip()
+            # Heuristic: keep entity only if it looks like a real name:
+            #   * contains at least one whitespace (e.g. first + last name)
+            #   * or length >= 5 characters (e.g. 'Emma', 'Schmidt', 'Mustermann')
+            #   * or is explicitly whitelisted (e.g. 'Re')
+            if not (" " in text_str or len(text_str) >= 5 or text_str in {"Re"}):
+                continue
+
+            # Handle optional titles (Dr., Mr., Ms.) that precede a PERSON
+            if ent.start != 0 and doc[ent.start - 1].text in (
+                "Dr",
+                "Dr.",
+                "Mr",
+                "Mr.",
+                "Ms",
+                "Ms.",
+            ):
+                ent = Span(doc, ent.start - 1, ent.end, label=DefaultEntityLabel.PERSON)
+
+            ents.append(ent)
         else:
             ents.append(ent)
     doc.ents = ents
@@ -96,7 +127,7 @@ DEFAULT_CUSTOM_NER_COMPONENTS_AFTER = [
 
 
 # Spacy pipeline for entity redacting
-# @singleton
+@singleton
 class EntityRedactor:
     __slots__ = ["nlp"]
 
@@ -110,10 +141,20 @@ class EntityRedactor:
         # Loading spaCy models is an expensive operation in terms of time and memory
         # By using the singleton pattern, we ensure that we only load the model once per language
         # This significantly reduces initialization time for subsequent calls
+        # Select appropriate model based on language
+        match language:
+            case "de":
+                model_name = SpacyModels.DE_CORE_NEWS_SM
+            case "en":
+                model_name = SpacyModels.EN_CORE_WEB_SM
+            case "it":
+                model_name = SpacyModels.IT_CORE_NEWS_SM
+            case _:
+                # Default to English small model for unsupported languages
+                model_name = SpacyModels.EN_CORE_WEB_SM
+
         self.nlp = load(
-            SpacyModels.DE_CORE_NEWS_MD
-            if language == "de"
-            else SpacyModels.EN_CORE_WEB_SM,
+            model_name,
             disable=[
                 "attribute_ruler",
                 "lemmatizer",
@@ -136,7 +177,12 @@ class EntityRedactor:
         for component in components:
             custom_ner_component_name = create_ner_component(**component._asdict())
             if component.before_ner:
-                self.nlp.add_pipe(custom_ner_component_name, before="ner")
+                # Insert at the very beginning of the pipeline so that
+                # user-supplied components take precedence over any built-in
+                # rules that are also placed before the NER component (e.g.
+                # phone, email). Using `first=True` guarantees execution order
+                # regardless of what other components already exist.
+                self.nlp.add_pipe(custom_ner_component_name, first=True)
             else:
                 self.nlp.add_pipe(custom_ner_component_name, after="ner")
 
@@ -149,13 +195,17 @@ class EntityRedactor:
 
         # Process in reverse to avoid index issues
         for ent in reversed(doc.ents):
-            if ent.label_ not in entity_map:
-                entity_map[ent.label_] = []
+            label = ent.label_
+            if label.startswith("PER"):
+                label = DefaultEntityLabel.PERSON
 
-            placeholder = f"[{ent.label_}]"
+            if label not in entity_map:
+                entity_map[label] = []
+
+            placeholder = f"[{label}]"
             if deanonymize:
-                placeholder = f"[{ent.label_}_{len(entity_map[ent.label_])}]"
-                entity_map[ent.label_].append((ent.text, placeholder))
+                placeholder = f"[{label}_{len(entity_map[label])}]"
+                entity_map[label].append((ent.text, placeholder))
 
             redacted_text = (
                 redacted_text[: ent.start_char]

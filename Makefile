@@ -1,33 +1,42 @@
-deps-install:
-	hash poetry 2>/dev/null || pip install poetry;
-	poetry config virtualenvs.in-project true
-	poetry env use python3.11
-	poetry install -vv
+install:
+	uv sync --group dev
 
-model-install:
-	poetry run python -m spacy download en_core_web_trf
-	poetry run python -m spacy download de_core_news_md
-	poetry run python -m spacy download en_core_web_sm
-	poetry run pip install --upgrade pip
+activate:
+	uv venv
 
-install: deps-install
+install-pip:
+	uv pip install pip --upgrade
+
+model-en: install-pip
+	uv run python -m spacy download en_core_web_sm
+
+model-de: install-pip
+	uv run python -m spacy download de_core_news_sm
+
+model-it: install-pip
+	uv run python -m spacy download it_core_news_sm
+
+model-es: install-pip
+	uv run python -m spacy download es_core_news_sm
+
+model-fr: install-pip
+	uv run python -m spacy download fr_core_news_sm
 
 update-deps:
-	poetry config virtualenvs.in-project true
-	poetry update
+	uv update
 
 fix:
-	poetry run ruff check --fix .
+	uv run ruff check --fix .
 
 format:
-	poetry run ruff format .
+	uv run ruff format .
 
 lint:
-	poetry run ruff check .
+	uv run ruff check .
 
 clean: fix format lint
 	rm -fr .pytest_cache */__pycache__ */*/__pycache__
-	poetry run ruff clean
+	uv run ruff clean
 
 test:
-	poetry run pytest -vv
+	uv run pytest -vv
