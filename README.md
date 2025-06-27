@@ -20,7 +20,7 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - UV package manager (recommended) or pip
 
 ### Quick Start
