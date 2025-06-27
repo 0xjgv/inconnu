@@ -5,6 +5,7 @@ activate:
 	uv venv
 
 model-install:
+	uv pip install pip --upgrade
 	uv run python -m spacy download en_core_web_sm
 
 update-deps:

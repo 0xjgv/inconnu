@@ -3,7 +3,7 @@ name = "inconnu"
 version = "0.1.0"
 description = "Entity redaction and deanonymization"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "phonenumbers>=9.0.8",
     "spacy>=3.8.7",
