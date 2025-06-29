@@ -190,6 +190,37 @@ class TestInconnuPseudonymizer:
 
         assert de_prompt == deanonymized_text
 
+    def test_us_555_phone_number(self, inconnu_en):
+        """Ensure reserved US 555 numbers are still detected and redacted.
+
+        The libphonenumber metadata marks most 555 numbers as *invalid* because they
+        are reserved for fictional use. We relaxed the matcher to
+        ``Leniency.POSSIBLE`` for the US region, so +1-555-123-4567 should now be
+        picked up and replaced by a ``PHONE_NUMBER`` placeholder.
+        """
+
+        text = "John Doe called from +1-555-123-4567 regarding the incident."
+
+        processed_data = inconnu_en(text=text)
+
+        # Locate the phone-number placeholder dynamically (index may vary).
+        phone_placeholders = [
+            k for k in processed_data.entity_map if k.startswith("[PHONE_NUMBER")
+        ]
+
+        assert len(phone_placeholders) == 1, (
+            "Exactly one phone number should be detected"
+        )
+
+        placeholder = phone_placeholders[0]
+
+        # Mapping should point back to the original number (with hyphens preserved)
+        assert processed_data.entity_map[placeholder] == "+1-555-123-4567"
+
+        # Number must be absent from the redacted text, replaced by the placeholder
+        assert "+1-555-123-4567" not in processed_data.redacted_text
+        assert placeholder in processed_data.redacted_text
+
 
 class TestInconnuAnonymizer:
     @pytest.mark.parametrize(

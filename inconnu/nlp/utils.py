@@ -44,7 +44,7 @@ class DefaultEntityLabel(StrEnum):
     EVENT = "EVENT"
     TIME = "TIME"
     DATE = "DATE"
-    NORP = "NORP"
+    NORP = "NORP"  # nationality, religious or political groups
     MISC = "MISC"  # misc for DE language“
     IBAN = "IBAN"  # custom ner component
     LAW = "LAW"

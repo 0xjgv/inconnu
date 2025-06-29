@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from phonenumbers import PhoneNumberMatcher
+from phonenumbers import Leniency, PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
@@ -22,7 +22,7 @@ class SpacyModels(StrEnum):
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
-SUPPORTED_REGIONS = ["DE", "CH", "GB", "IT"]
+SUPPORTED_REGIONS = ["DE", "CH", "GB", "IT", "US"]
 
 
 def process_phone_number(doc: Doc) -> Doc:
@@ -30,7 +30,13 @@ def process_phone_number(doc: Doc) -> Doc:
     spans = []
 
     for region in SUPPORTED_REGIONS:
-        for match in PhoneNumberMatcher(doc.text, region, leniency=1):
+        # Use stricter validation (Leniency.VALID) for most regions to avoid false
+        # positives like German ZIP codes being detected as phone numbers. For US
+        # numbers we relax the check to Leniency.POSSIBLE so that test numbers
+        # (e.g. +1-555-123-4567) that are not allocated in real numbering plans
+        # are still captured.
+        leniency = Leniency.POSSIBLE if region == "US" else Leniency.VALID
+        for match in PhoneNumberMatcher(doc.text, region, leniency=leniency):
             span = doc.char_span(match.start, match.end)
             if span and span not in seen_spans:
                 spans.append(
