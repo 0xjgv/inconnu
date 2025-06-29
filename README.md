@@ -38,7 +38,7 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 3. **Download required NLP models**:
    ```bash
-   make model-en    # English model (default)
+   make model-de    # German model
    ```
 
 4. **Verify installation**:
@@ -83,7 +83,7 @@ uv run python -m spacy download en_core_web_trf
 make model-de
 uv run python -m spacy download de_core_news_sm
 
-# Italian model  
+# Italian model
 make model-it
 uv run python -m spacy download it_core_news_sm
 
@@ -132,7 +132,6 @@ For more models, visit the [spaCy Models Directory](https://spacy.io/models).
 ```bash
 # Development workflow
 make install          # Install all dependencies
-make model-en         # Download English spaCy model
 make model-de         # Download German spaCy model
 make model-it         # Download Italian spaCy model
 make model-es         # Download Spanish spaCy model
@@ -198,16 +197,16 @@ import asyncio
 # Async processing for non-blocking operations
 async def process_texts():
     inconnu = Inconnu()
-    
+
     # Single async processing
     text = "John Doe called from +1-555-123-4567"
     redacted = await inconnu.redact_async(text)
     print(redacted)  # "[PERSON] called from [PHONE_NUMBER]"
-    
+
     # Batch async processing
     texts = [
         "Alice Smith visited Berlin",
-        "Bob Jones went to Tokyo", 
+        "Bob Jones went to Tokyo",
         "Carol Brown lives in Paris"
     ]
     results = await inconnu.redact_batch_async(texts)
