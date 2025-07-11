@@ -19,9 +19,6 @@ model-es: install-pip
 model-fr: install-pip
 	uv run python -m spacy download fr_core_news_sm
 
-install-corgea:
-	uv pip install corgea-cli
-
 update-deps:
 	uv update
 

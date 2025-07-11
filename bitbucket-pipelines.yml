@@ -15,7 +15,6 @@ pipelines:
           - make model-it         # pull Italian spaCy model required by tests
           - make lint             # static analysis via ruff
           - make test             # run pytest suite
-          - make install-corgea   # install corgea-cli via uv
 
           # ---------- Security Scan ----------
           # Example using Fortify SAST
@@ -23,12 +22,12 @@ pipelines:
           # - sourceanalyzer -b ${BITBUCKET_REPO} -python-version 3.11 -python-path .venv/lib/python3.11/site-packages inconnu
           # - sourceanalyzer -b ${BITBUCKET_REPO} -scan -f scan.fpr -disable-source-bundling true
           # - corgea upload scan.fpr --project ${BITBUCKET_REPO}
-          - corgea scan
+          - uv run corgea scan
 
           # ---------- Corgea ----------
-          - pip install --quiet corgea-cli
-          - corgea login ${CORGEA_API_TOKEN}
-          - corgea upload scan.fpr --project ${BITBUCKET_REPO}
+          - uv run pip install --quiet corgea-cli # install corgea-cli via uv
+          - uv run corgea login ${CORGEA_API_TOKEN}
+          - uv run corgea upload scan.fpr --project ${BITBUCKET_REPO}
 
           # Wait for triage to complete and capture the Scan ID
           - SCAN_ID=$(corgea wait | jq -r '.id')
