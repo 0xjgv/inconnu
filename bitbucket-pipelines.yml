@@ -8,18 +8,19 @@ pipelines:
           - pip
         script:
           # ---------- Build & Test ----------
-          - apt-get update && apt-get install -y --no-install-recommends make
+          - apt-get update && apt-get install -y --no-install-recommends make jq
           - pip install --quiet uv
           - make install          # install dev dependencies via uv
           - make model-de         # pull German spaCy model required by tests
           - make model-it         # pull Italian spaCy model required by tests
           - make lint             # static analysis via ruff
           - make test             # run pytest suite
+          - source .venv/bin/activate     # activate the virtual environment
 
           # ---------- Corgea ----------
           - uv add --group dev corgea-cli # install corgea-cli via uv
-          - uv run corgea login ${CORGEA_API_TOKEN}
-          - uv run corgea scan
+          - corgea login ${CORGEA_API_TOKEN}
+          - corgea scan
 
           # ---------- Security Scan ----------
           # Example using Fortify SAST
