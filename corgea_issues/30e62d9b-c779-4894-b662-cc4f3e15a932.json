@@ -1,0 +1,47 @@
+
+{
+  "status": "ok",
+  "issue": {
+    "id": "30e62d9b-c779-4894-b662-cc4f3e15a932",
+    "scan_id": "c9a5b7a3-4470-427b-9b1f-b1149b72f3f0",
+    "status": "open",
+    "urgency": "LO",
+    "created_at": "2025-07-11T15:07:25.460Z",
+    "classification": {
+      "id": "CWE-625",
+      "name": "Permissive Regular Expression",
+      "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values."
+    },
+    "location": {
+      "file": {
+        "name": "patterns.py",
+        "language": "python",
+        "path": "inconnu/nlp/patterns.py"
+      },
+      "line_number": 79,
+      "project": {
+        "name": "build",
+        "branch": "main",
+        "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d"
+      }
+    },
+    "details": {
+      "explanation": "The regex in <code>f\"((?:{BULLETS_PATTERN})|{PARAGRAPH_PATTERN})(?!{BULLETS_PATTERN}|$)\"</code> allows unintended input by not strictly limiting matches, risking incorrect parsing.<br><br>- The regex uses alternation between \"BULLETS_PATTERN\" and \"PARAGRAPH_PATTERN\", but lacks strict boundaries, allowing unexpected input through.<br>- The negative lookahead \"(?!{BULLETS_PATTERN}|$)\" tries to stop matches before bullets or end, but might fail, letting malicious input bypass checks.<br>- This weak restriction can lead to misinterpretation in processing bullets and paragraphs, enabling injection or data tampering risks in text handling."
+    },
+    "auto_triage": {
+      "false_positive_detection": {
+        "status": "valid",
+        "reasoning": "The code constructs the BULLETS_PATTERN by joining UNICODE_BULLETS directly with \"|\" without escaping regex metacharacters such as \"-\" (line 48) and \"*\" (line 50 as r\"\\*\"). This leads to incorrect regex patterns interpolated on line 79, allowing unintended matching or potential regex injection if the bullet list changes. Although the list is static now, improper escaping violates best practices and leaves room for subtle security issues in future maintenance or extensions."
+      }
+    },
+    "auto_fix_suggestion": {
+      "id": "6a81e47e-4493-4bc0-a627-79703d5f0a70",
+      "status": "fix_available",
+      "patch": {
+        "diff": "",
+        "explanation": "The fix adjusts the regular expression to properly restrict matches by ensuring it does not allow trailing bullet patterns or end the string prematurely, preventing improper value acceptance.\n<code>((?:{BULLETS_PATTERN})|{PARAGRAPH_PATTERN})(?!{BULLETS_PATTERN}|$)</code> uses a negative lookahead to disallow matches followed by bullet patterns or string end.\n    This prevents the regex from accepting incomplete or unexpected trailing pieces that caused overly permissive matching.\n    The unchanged pattern ensures existing valid matching logic is retained while tightening restrictions on what follows the match."
+      },
+      "full_code": null
+    }
+  }
+}

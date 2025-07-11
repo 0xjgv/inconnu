@@ -1,0 +1,47 @@
+
+{
+  "status": "ok",
+  "issue": {
+    "id": "9f27a2ca-cd59-4aba-9849-eb8e9688b4fe",
+    "scan_id": "c9a5b7a3-4470-427b-9b1f-b1149b72f3f0",
+    "status": "open",
+    "urgency": "LO",
+    "created_at": "2025-07-11T15:07:25.719Z",
+    "classification": {
+      "id": "CWE-625",
+      "name": "Permissive Regular Expression",
+      "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values."
+    },
+    "location": {
+      "file": {
+        "name": "patterns.py",
+        "language": "python",
+        "path": "inconnu/nlp/patterns.py"
+      },
+      "line_number": 94,
+      "project": {
+        "name": "build",
+        "branch": "main",
+        "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d"
+      }
+    },
+    "details": {
+      "explanation": "The regex used in the code is too loose, allowing unexpected or malformed input. This can cause the program to accept bad data or misinterpret values.<br><br>- The first pattern \"r\"[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\"\" tries to match IP-like numbers but allows invalid IPs like \"99.99.99.99\" or \"256.300.1.2\".<br>- The second pattern \"\"[a-z0-9]{4}::[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}%?[0-9]*\"\" loosely matches address strings but permits wrong formats or extra characters.<br>- Attackers can exploit these to inject malformed or malicious input that bypasses validation or causes unexpected behavior, risking security or data integrity."
+    },
+    "auto_triage": {
+      "false_positive_detection": {
+        "status": "valid",
+        "reasoning": "The IP address regex pattern on lines <code>94-95</code> is indeed too permissive: it allows IPv4 octets to be one or two digits (i.e., 0-99), which is invalid since octets must be between 0 and 255. Additionally, the IPv6 pattern permits any lowercase alphanumeric characters instead of restricting to valid hexadecimal digits, thus it can match invalid IPv6 addresses. Since these patterns could incorrectly match invalid IP addresses, the finding is valid."
+      }
+    },
+    "auto_fix_suggestion": {
+      "id": "a1abffe3-a02e-42ad-93f3-6e0fdd4f262e",
+      "status": "fix_available",
+      "patch": {
+        "diff": "diff --git a/inconnu/nlp/patterns.py b/inconnu/nlp/patterns.py\nindex ed4774b..ccec5b8 100644\n--- a/inconnu/nlp/patterns.py\n+++ b/inconnu/nlp/patterns.py\n@@ -91,8 +91,19 @@ ONE_LINE_BREAK_PARAGRAPH_PATTERN_RE = re.compile(ONE_LINE_BREAK_PARAGRAPH_PATTER\n \n # IP Address examples: ba23::58b5:2236:45g2:88h2 or 10.0.2.01\n IP_ADDRESS_PATTERN = (\n-    r\"[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\",\n-    \"[a-z0-9]{4}::[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}%?[0-9]*\",\n+    r\"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.\" \\\n+    r\"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.\" \\\n+    r\"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.\" \\\n+    r\"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\",\n+    r\"(?i:(?:[a-f0-9]{1,4}:){7}[a-f0-9]{1,4}|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,7}:|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,6}:[a-f0-9]{1,4}|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,5}(?::[a-f0-9]{1,4}){1,2}|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,4}(?::[a-f0-9]{1,4}){1,3}|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,3}(?::[a-f0-9]{1,4}){1,4}|\" \\\n+    r\"(?:[a-f0-9]{1,4}:){1,2}(?::[a-f0-9]{1,4}){1,5}|\" \\\n+    r\"[a-f0-9]{1,4}:(?:(?::[a-f0-9]{1,4}){1,6})|\" \\\n+    r\":(?:(?::[a-f0-9]{1,4}){1,7}|:))%?[0-9a-zA-Z]{0,}?\",\n )\n IP_ADDRESS_PATTERN_RE = re.compile(f\"({'|'.join(IP_ADDRESS_PATTERN)})\")\n \n",
+        "explanation": "The fix replaces overly permissive IP regex patterns with precise ones that strictly validate IPv4 octets (0-255) and full IPv6 formats, preventing invalid or malicious IP inputs from passing the pattern.\n- Replaced the IPv4 pattern <code>[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}</code> with a refined regex using <code>(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])</code> per octet to limit values strictly between 0-255.\n- Updated the IPv6 pattern from a simple fixed-length hex group regex <code>[a-z0-9]{4}::[a-z0-9]{4}...</code> to a comprehensive pattern covering all valid IPv6 notations, including shortened and zero-compressed addresses.\n- Added case-insensitive flag <code>(?i:...)</code> for IPv6 hex digits to accept uppercase and lowercase letters consistently.\n- Included optional zone index support for IPv6 with <code>%[0-9a-zA-Z]{0,}?</code> to accommodate scoped addresses safely."
+      },
+      "full_code": null
+    }
+  }
+}
