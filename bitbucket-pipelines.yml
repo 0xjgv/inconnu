@@ -15,6 +15,7 @@ pipelines:
           - make model-it         # pull Italian spaCy model required by tests
           - make lint             # static analysis via ruff
           - make test             # run pytest suite
+          - make install-corgea   # install corgea-cli via uv
 
           # ---------- Security Scan ----------
           # Example using Fortify SAST
