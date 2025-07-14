@@ -1,6 +1,6 @@
 # https://github.com/Unstructured-IO/unstructured/blob/c27e0d0062a662ca377f4df9db3a9d9de26bfa55/unstructured/nlp/patterns.py
 import re
-from typing import Final, List
+from typing import Final
 
 US_PHONE_NUMBERS_PATTERN = (
     r"(?:\+?(\d{1,3}))?[-. (]*(\d{3})?[-. )]*(\d{3})[-. ]*(\d{4})(?: *x(\d+))?\s*$"
@@ -27,7 +27,7 @@ US_CITY_STATE_ZIP_PATTERN = (
 )
 US_CITY_STATE_ZIP_RE = re.compile(US_CITY_STATE_ZIP_PATTERN)
 
-UNICODE_BULLETS: Final[List[str]] = [
+UNICODE_BULLETS: Final[list[str]] = [
     "\u0095",
     "\u2022",
     "\u2023",
