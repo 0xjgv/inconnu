@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: S603
 """
 Post Corgea (or any JSON) issues from the pipeline *artifacts* directory to
 Bitbucket Cloud as inline comments with "Apply suggestion" blocks.
@@ -6,12 +7,21 @@ Bitbucket Cloud as inline comments with "Apply suggestion" blocks.
 Usage (inside Bitbucket Pipelines step):
   python .bitbucket/scripts/post_scan.py corgea_issues/
 
-Environment variables used (all provided by Pipelines except the app-password):
+Environment variables used (all provided by Pipelines):
   BITBUCKET_PR_ID          – current PR id (empty when not in PR context)
   BITBUCKET_REPO_SLUG      – repo slug, e.g. "inconnu"
   BITBUCKET_WORKSPACE      – workspace id, e.g. "0xjgv"
-  BB_API_USER              – Bitbucket username (set as secured variable)
-  BB_API_TOKEN             – Bitbucket app-password with `pullrequest:write`
+
+Authentication (one of these options):
+  Option 1: App Password (recommended for full access)
+    BB_API_USER              – Bitbucket username (set as secured variable)
+    BB_API_TOKEN             – Bitbucket app-password with `pullrequest:write`
+
+  Option 2: Repository Access Token
+    BITBUCKET_REPO_ACCESS_TOKEN – Repository access token with PR write permissions
+
+  Note: Without authentication, the script will still process issues and can apply
+  fixes locally (with BB_AUTO_COMMIT_FIXES=true) but won't post PR comments.
 
 Optional configuration:
   BB_SUGGESTION_FORMAT     – "enhanced" (default) or "raw" for comment format
@@ -55,8 +65,36 @@ def _env(key: str) -> str:
         raise ConfigError(f"Missing required env-var: {key}") from exc
 
 
-def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> None:
-    """POST an inline comment to Bitbucket Cloud."""
+def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> bool:
+    """POST an inline comment to Bitbucket Cloud.
+
+    Returns True if successful, False otherwise.
+    """
+    # Check if we have authentication credentials
+    try:
+        api_token = os.environ.get("BB_API_TOKEN")
+        api_user = os.environ.get("BB_API_USER")
+
+        if not api_user or not api_token:
+            # Try repository access token as fallback
+            repo_token = os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN")
+            if repo_token:
+                # Use Bearer auth with repository access token
+                headers = {"Authorization": f"Bearer {repo_token}"}
+                auth = None
+            else:
+                sys.stderr.write(
+                    "Warning: No authentication configured. Set BB_API_USER/BB_API_TOKEN or use a repository access token.\n"
+                )
+                return False
+        else:
+            # Use basic auth with username/app password
+            auth = (api_user, api_token)
+            headers = None
+    except Exception as exc:
+        sys.stderr.write(f"Error checking authentication: {exc}\n")
+        return False
+
     url = (
         f"{BB_API_ROOT}/repositories/"
         f"{_env('BITBUCKET_WORKSPACE')}/"
@@ -68,15 +106,22 @@ def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> None:
         "content": {"raw": text},
     }
 
-    auth = (_env("BB_API_USER"), _env("BB_API_TOKEN"))
-    resp = requests.post(url, json=payload, auth=auth, timeout=10)
     try:
+        if headers:
+            resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        else:
+            resp = requests.post(url, json=payload, auth=auth, timeout=10)
+
         resp.raise_for_status()
+        return True
     except requests.HTTPError as err:
         sys.stderr.write(
             f"Failed to comment on {inline_path}:{line}: {err}\n" + resp.text + "\n"
         )
-        raise
+        return False
+    except Exception as exc:
+        sys.stderr.write(f"Error posting comment: {exc}\n")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +261,7 @@ def _apply_diff_to_file(file_path: str, diff_text: str) -> bool:
 
         # Apply the patch
         result = subprocess.run(
-            ["git", "apply", "--whitespace=fix", tmp_path],
+            ["/usr/bin/git", "apply", "--whitespace=fix", tmp_path],
             capture_output=True,
             text=True,
         )
@@ -241,7 +286,9 @@ def _commit_changes(message: str, files: list[str]) -> bool:
     """
     try:
         # Stage the files
-        result = subprocess.run(["git", "add"] + files, capture_output=True, text=True)
+        result = subprocess.run(
+            ["/usr/bin/git", "add"] + files, capture_output=True, text=True
+        )
 
         if result.returncode != 0:
             sys.stderr.write(f"Failed to stage files: {result.stderr}\n")
@@ -249,7 +296,7 @@ def _commit_changes(message: str, files: list[str]) -> bool:
 
         # Create the commit
         result = subprocess.run(
-            ["git", "commit", "-m", message], capture_output=True, text=True
+            ["/usr/bin/git", "commit", "-m", message], capture_output=True, text=True
         )
 
         if result.returncode != 0:
@@ -271,7 +318,9 @@ def _push_changes() -> bool:
     try:
         # Get current branch name
         result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True
+            ["/usr/bin/git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
@@ -282,7 +331,9 @@ def _push_changes() -> bool:
 
         # Push to origin
         result = subprocess.run(
-            ["git", "push", "origin", branch], capture_output=True, text=True
+            ["/usr/bin/git", "push", "origin", branch],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
@@ -378,8 +429,15 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
         raise SystemExit(f"Artifact directory '{directory}' not found")
 
     issue_count = 0
+    comment_count = 0
     fixed_files = []
     fixes_applied = []
+
+    # Check if authentication is configured
+    auth_configured = bool(
+        (os.environ.get("BB_API_USER") and os.environ.get("BB_API_TOKEN"))
+        or os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN")
+    )
 
     for issue_data in _iter_issue_files(path):
         try:
@@ -394,12 +452,11 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
             sys.stderr.write(f"Error parsing issue JSON: {exc}\n")
             continue
 
-        # Always post comment
-        try:
-            _create_comment(pr_id, file_path, line, message)
-            issue_count += 1
-        except Exception as exc:  # noqa: BLE001
-            sys.stderr.write(f"Posting comment failed: {exc}\n")
+        issue_count += 1
+
+        # Try to post comment
+        if _create_comment(pr_id, file_path, line, message):
+            comment_count += 1
 
         # Apply fix if auto-commit is enabled and diff is available
         if AUTO_COMMIT_FIXES and diff_text:
@@ -412,7 +469,17 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
             else:
                 print(f"Failed to apply fix to {file_path}")
 
-    print(f"Posted {issue_count} Bitbucket comments from {directory}")
+    # Print summary
+    if not auth_configured:
+        print(f"\n⚠️  Processed {issue_count} security issues from {directory}")
+        print("   Authentication not configured - unable to post PR comments.")
+        print(
+            "   Run 'python .bitbucket/scripts/post_setup_comment.py' for setup instructions."
+        )
+    else:
+        print(
+            f"\n✅ Posted {comment_count}/{issue_count} Bitbucket comments from {directory}"
+        )
 
     # Commit and push fixes if any were applied
     if AUTO_COMMIT_FIXES and fixes_applied:
