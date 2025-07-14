@@ -13,14 +13,20 @@ Environment variables used (all provided by Pipelines except the app-password):
   BB_API_USER              – Bitbucket username (set as secured variable)
   BB_API_TOKEN             – Bitbucket app-password with `pullrequest:write`
 
+Optional configuration:
+  BB_SUGGESTION_FORMAT     – "enhanced" (default) or "raw" for comment format
+  BB_USE_SUGGESTION_BLOCKS – "true" to use ```suggestion blocks (Bitbucket Server only)
+  BB_AUTO_COMMIT_FIXES     – "true" to automatically apply and commit fixes (default: false)
+
 If executed outside Pipelines you can export the variables manually for testing.
 """
 
 import json
 import os
 import pathlib
+import subprocess
 import sys
-from typing import Any
+import tempfile
 
 import requests
 
@@ -28,52 +34,14 @@ __all__ = ["main"]
 
 BB_API_ROOT = "https://api.bitbucket.org/2.0"
 
-sample_issue = {
-    "status": "ok",
-    "issue": {
-        "id": "05d43bed-c72a-417b-a2ea-06a89ae1cd48",
-        "scan_id": "81d70177-35aa-423a-9cb0-0fcee0f004f3",
-        "status": "open",
-        "urgency": "LO",
-        "created_at": "2025-07-11T14:24:18.480Z",
-        "classification": {
-            "id": "CWE-625",
-            "name": "Permissive Regular Expression",
-            "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
-        },
-        "location": {
-            "file": {
-                "name": "patterns.py",
-                "language": "python",
-                "path": "inconnu/nlp/patterns.py",
-            },
-            "line_number": 97,
-            "project": {
-                "name": "inconnu",
-                "branch": "main",
-                "git_sha": "5d59780a3b561142b791f4c505f6b3604230cb54",
-            },
-        },
-        "details": {
-            "explanation": 'The code uses a regular expression to match IP addresses but it is too lenient, allowing incorrect or malicious input to pass as valid IPs.<br><br>- The regex "re.compile(f"({\'|\'.join(IP_ADDRESS_PATTERN)})")" matches any pattern in "IP_ADDRESS_PATTERN", but these patterns may not fully verify valid IP formats.<br>- Attackers can exploit this by inputting malformed IPs that bypass checks and cause unexpected behavior or security gaps.<br>- This is critical since IP validation often controls access or logging, impacting security or correctness of sensitive operations.'
-        },
-        "auto_triage": {
-            "false_positive_detection": {
-                "status": "valid",
-                "reasoning": "The regex pattern <code>IP_ADDRESS_PATTERN</code> used in line 97 deliberately allows one or two digit octets for IPv4 and lowercase alphanumeric characters that are not restricted to valid hexadecimal digits for IPv6 on line 95, which does not conform to valid IP standard formats. This overly permissive pattern can lead to misidentification or incorrect matching of IP addresses, creating a risk of false positives or improper filtering when used for security-sensitive operations, as noted in the description. Because of the pattern's incorrect validation logic directly in the code, the vulnerability is valid.",
-            }
-        },
-        "auto_fix_suggestion": {
-            "id": "e3b53bb7-924d-4727-ac9b-0982d628331f",
-            "status": "fix_available",
-            "patch": {
-                "diff": 'diff --git a/inconnu/nlp/patterns.py b/inconnu/nlp/patterns.py\nindex ed4774b..1e7b4af 100644\n--- a/inconnu/nlp/patterns.py\n+++ b/inconnu/nlp/patterns.py\n@@ -94,7 +94,10 @@ IP_ADDRESS_PATTERN = (\n     r"[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}",\n     "[a-z0-9]{4}::[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}:[a-z0-9]{4}%?[0-9]*",\n )\n-IP_ADDRESS_PATTERN_RE = re.compile(f"({\'|\'.join(IP_ADDRESS_PATTERN)})")\n+# More accurate patterns for IPv4 and IPv6 addresses.\n+IPV4_PATTERN = r"(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)){3}"\n+IPV6_PATTERN = r"(?:(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}|((?:[A-Fa-f0-9]{1,4}:){1,7}:)|((?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4})|((?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2})|((?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3})|((?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4})|((?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5})|([A-Fa-f0-9]{1,4}:(?:(?::[A-Fa-f0-9]{1,4}){1,6}))|(:((?::[A-Fa-f0-9]{1,4}){1,7}|:)))(%.+)?"\n+IP_ADDRESS_PATTERN_RE = re.compile(f"(?:{IPV4_PATTERN})|(?:{IPV6_PATTERN})")\n \n IP_ADDRESS_NAME_PATTERN = r"[a-zA-Z0-9-]*\\.[a-zA-Z]*\\.[a-zA-Z]*"\n \n',
-                "explanation": "The fix replaces a simplistic IP regex with precise IPv4 and IPv6 patterns that strictly enforce valid octet and segment ranges, preventing invalid IPs from matching and mitigating the risk of accepting malformed or malicious input.\n<li>Replaced broad pattern <code>IP_ADDRESS_PATTERN_RE</code> with two strict regexes: <code>IPV4_PATTERN</code> and <code>IPV6_PATTERN</code> for accurate IP validation.</li>\n<li><code>IPV4_PATTERN</code> restricts each octet to 0-255 using patterns like <code>25[0-5]</code> and <code>2[0-4]\\d</code>, ensuring no invalid numbers match.</li>\n<li><code>IPV6_PATTERN</code> handles various IPv6 formats including compressed and full notation, validating proper hex groups and optional zone indices (<code>%...</code>).</li>\n<li>The combined regex <code>IP_ADDRESS_PATTERN_RE</code> now matches strictly either the IPv4 or IPv6 pattern using non-capturing groups, improving overall accuracy.</li>",
-            },
-            "full_code": None,
-        },
-    },
-}
+# Configuration options
+USE_SUGGESTION_BLOCKS = (
+    os.environ.get("BB_USE_SUGGESTION_BLOCKS", "false").lower() == "true"
+)
+SUGGESTION_FORMAT = os.environ.get(
+    "BB_SUGGESTION_FORMAT", "enhanced"
+)  # enhanced or raw
+AUTO_COMMIT_FIXES = os.environ.get("BB_AUTO_COMMIT_FIXES", "false").lower() == "true"
 
 
 class ConfigError(RuntimeError):
@@ -95,7 +63,7 @@ def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> None:
         f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/comments"
     )
 
-    payload: dict[str, Any] = {
+    payload: dict = {
         "inline": {"path": inline_path, "to": line},
         "content": {"raw": text},
     }
@@ -112,15 +80,235 @@ def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Diff parsing helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_unified_diff(diff_text: str) -> tuple[list[str], list[str]] | None:
+    """Parse unified diff format and extract the old and new code sections.
+
+    Returns:
+        Tuple of (old_lines, new_lines) or None if parsing fails
+    """
+    if not diff_text:
+        return None
+
+    lines = diff_text.strip().split("\n")
+    old_lines = []
+    new_lines = []
+
+    # Skip header lines (---, +++, @@)
+    in_diff = False
+    for line in lines:
+        if line.startswith("@@"):
+            in_diff = True
+            continue
+        if not in_diff:
+            continue
+
+        if line.startswith("-") and not line.startswith("---"):
+            # Line removed (part of old code)
+            old_lines.append(line[1:])
+        elif line.startswith("+") and not line.startswith("+++"):
+            # Line added (part of new code)
+            new_lines.append(line[1:])
+        elif line.startswith(" "):
+            # Context line (appears in both)
+            old_lines.append(line[1:])
+            new_lines.append(line[1:])
+        # Skip lines that don't start with +, -, or space (like @@ lines)
+
+    return (old_lines, new_lines) if old_lines or new_lines else None
+
+
+def _format_code_suggestion(
+    title: str,
+    description: str,
+    urgency: str | None,
+    diff_text: str | None,
+    explanation: str | None,
+    line_number: int,
+) -> str:
+    """Format a code suggestion comment with clear before/after sections."""
+    msg_parts = [f"**{title}**", "", description]
+
+    # Add urgency if available
+    if urgency:
+        msg_parts.append("")
+        msg_parts.append(f"**Urgency:** {urgency}")
+
+    # Add code suggestion if available
+    if diff_text:
+        if SUGGESTION_FORMAT == "raw" or USE_SUGGESTION_BLOCKS:
+            # Use raw format or suggestion blocks for Bitbucket Server
+            msg_parts.extend(
+                [
+                    "",
+                    "**Auto-fix available:**",
+                ]
+            )
+            if USE_SUGGESTION_BLOCKS:
+                msg_parts.append(f"```suggestion\n{diff_text}\n```")
+            else:
+                msg_parts.append(f"```diff\n{diff_text}\n```")
+            if explanation:
+                msg_parts.extend(["", "**Explanation:**", explanation])
+        else:
+            # Use enhanced format with parsed diff
+            parsed_diff = _parse_unified_diff(diff_text)
+            if parsed_diff:
+                old_code, new_code = parsed_diff
+
+                msg_parts.extend(
+                    [
+                        "",
+                        "**🔧 Suggested Fix:**",
+                        "",
+                        f"Replace the following code at line {line_number}:",
+                        "```python",
+                        "# Current code (REMOVE):",
+                    ]
+                )
+                msg_parts.extend(old_code)
+                msg_parts.append("```")
+
+                msg_parts.extend(
+                    [
+                        "",
+                        "With:",
+                        "```python",
+                        "# Fixed code (ADD):",
+                    ]
+                )
+                msg_parts.extend(new_code)
+                msg_parts.append("```")
+
+                if explanation:
+                    msg_parts.extend(["", "**Why this fix:**", explanation])
+            else:
+                # Fallback to raw diff if parsing fails
+                msg_parts.extend(
+                    ["", "**Auto-fix available:**", "```diff", diff_text, "```"]
+                )
+                if explanation:
+                    msg_parts.extend(["", "**Explanation:**", explanation])
+
+    return "\n".join(msg_parts)
+
+
+# ---------------------------------------------------------------------------
+# Git operations for applying fixes
+# ---------------------------------------------------------------------------
+
+
+def _apply_diff_to_file(file_path: str, diff_text: str) -> bool:
+    """Apply a unified diff to a file using git apply.
+
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Create a temporary file with the diff
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".patch", delete=False
+        ) as tmp:
+            tmp.write(diff_text)
+            tmp_path = tmp.name
+
+        # Apply the patch
+        result = subprocess.run(
+            ["git", "apply", "--whitespace=fix", tmp_path],
+            capture_output=True,
+            text=True,
+        )
+
+        # Clean up
+        os.unlink(tmp_path)
+
+        if result.returncode != 0:
+            sys.stderr.write(f"Failed to apply patch to {file_path}: {result.stderr}\n")
+            return False
+
+        return True
+    except Exception as exc:
+        sys.stderr.write(f"Error applying diff to {file_path}: {exc}\n")
+        return False
+
+
+def _commit_changes(message: str, files: list[str]) -> bool:
+    """Create a commit with the specified files and message.
+
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Stage the files
+        result = subprocess.run(["git", "add"] + files, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            sys.stderr.write(f"Failed to stage files: {result.stderr}\n")
+            return False
+
+        # Create the commit
+        result = subprocess.run(
+            ["git", "commit", "-m", message], capture_output=True, text=True
+        )
+
+        if result.returncode != 0:
+            sys.stderr.write(f"Failed to commit: {result.stderr}\n")
+            return False
+
+        print(f"Created commit: {message}")
+        return True
+    except Exception as exc:
+        sys.stderr.write(f"Error creating commit: {exc}\n")
+        return False
+
+
+def _push_changes() -> bool:
+    """Push the current branch to origin.
+
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Get current branch name
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True
+        )
+
+        if result.returncode != 0:
+            sys.stderr.write(f"Failed to get current branch: {result.stderr}\n")
+            return False
+
+        branch = result.stdout.strip()
+
+        # Push to origin
+        result = subprocess.run(
+            ["git", "push", "origin", branch], capture_output=True, text=True
+        )
+
+        if result.returncode != 0:
+            sys.stderr.write(f"Failed to push branch {branch}: {result.stderr}\n")
+            return False
+
+        print(f"Pushed changes to branch: {branch}")
+        return True
+    except Exception as exc:
+        sys.stderr.write(f"Error pushing changes: {exc}\n")
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Issue parsing helpers – tailor these according to your scanner's schema.
 # ---------------------------------------------------------------------------
 
 
-def _extract(issue: dict[str, Any]) -> tuple[str, int, str]:
-    """Return (file, line, message) triple required for Bitbucket comment.
+def _extract(issue: dict) -> tuple[str, int, str, str | None, str | None]:
+    """Return (file, line, message, diff, issue_id) tuple.
 
     The function is *schema-aware*: adapt the keys if your scanner changes.
     """
+    # Extract issue ID
+    issue_id = issue.get("id")
+
     # Extract location information from the nested structure
     location = issue.get("location", {})
     file_info = location.get("file", {})
@@ -145,34 +333,30 @@ def _extract(issue: dict[str, Any]) -> tuple[str, int, str]:
         or "No description provided."
     )
 
+    # Extract urgency
+    urgency = issue.get("urgency")
+
     # Extract auto-fix suggestion if available
     auto_fix = issue.get("auto_fix_suggestion", {})
-    suggestion_code = None
+    explanation = None
+    diff_text = None
+
     if auto_fix.get("status") == "fix_available":
         patch = auto_fix.get("patch", {})
-        suggestion_code = patch.get("diff")
         explanation = patch.get("explanation", "")
+        diff_text = patch.get("diff")
 
-    # Build the message
-    msg_parts = [f"**{title}**", "", description]
+    # Use the new formatting function
+    msg = _format_code_suggestion(
+        explanation=explanation,
+        description=description,
+        line_number=line_no,
+        diff_text=diff_text,
+        urgency=urgency,
+        title=title,
+    )
 
-    # Add urgency if available
-    urgency = issue.get("urgency")
-    if urgency:
-        msg_parts.append(f"**Urgency:** {urgency}")
-
-    # Add auto-fix suggestion if available
-    if suggestion_code:
-        msg_parts.append("")
-        msg_parts.append("**Auto-fix available:**")
-        msg_parts.append(f"```suggestion\n{suggestion_code}\n```")
-        if explanation:
-            msg_parts.append("")
-            msg_parts.append("**Explanation:**")
-            msg_parts.append(explanation)
-
-    msg = "\n".join(msg_parts)
-    return file_path, int(line_no), msg
+    return file_path, int(line_no), msg, diff_text, issue_id
 
 
 def _iter_issue_files(dir_path: pathlib.Path):
@@ -194,19 +378,67 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
         raise SystemExit(f"Artifact directory '{directory}' not found")
 
     issue_count = 0
-    for issue in _iter_issue_files(path):
+    fixed_files = []
+    fixes_applied = []
+
+    for issue_data in _iter_issue_files(path):
         try:
-            file_path, line, message = _extract(issue)
+            # Handle both wrapped {"issue": {...}} and direct issue format
+            issue = (
+                issue_data.get("issue", issue_data)
+                if isinstance(issue_data, dict)
+                else issue_data
+            )
+            file_path, line, message, diff_text, issue_id = _extract(issue)
         except Exception as exc:  # noqa: BLE001 – we need robustness here
             sys.stderr.write(f"Error parsing issue JSON: {exc}\n")
             continue
+
+        # Always post comment
         try:
             _create_comment(pr_id, file_path, line, message)
             issue_count += 1
         except Exception as exc:  # noqa: BLE001
             sys.stderr.write(f"Posting comment failed: {exc}\n")
 
+        # Apply fix if auto-commit is enabled and diff is available
+        if AUTO_COMMIT_FIXES and diff_text:
+            if _apply_diff_to_file(file_path, diff_text):
+                fixed_files.append(file_path)
+                fixes_applied.append(
+                    {"file": file_path, "issue_id": issue_id, "line": line}
+                )
+                print(f"Applied fix to {file_path} (line {line})")
+            else:
+                print(f"Failed to apply fix to {file_path}")
+
     print(f"Posted {issue_count} Bitbucket comments from {directory}")
+
+    # Commit and push fixes if any were applied
+    if AUTO_COMMIT_FIXES and fixes_applied:
+        # Group fixes by file for commit message
+        files_summary = {}
+        for fix in fixes_applied:
+            if fix["file"] not in files_summary:
+                files_summary[fix["file"]] = []
+            files_summary[fix["file"]].append(f"line {fix['line']}")
+
+        # Create commit message
+        commit_lines = ["fix: Apply Corgea security fixes", ""]
+        for file, lines in files_summary.items():
+            commit_lines.append(f"- {file}: {', '.join(lines)}")
+        commit_lines.append("")
+        commit_lines.append(f"Applied {len(fixes_applied)} fixes from Corgea scan")
+        commit_message = "\n".join(commit_lines)
+
+        if _commit_changes(commit_message, list(set(fixed_files))):
+            print(f"Committed {len(fixes_applied)} fixes")
+            if _push_changes():
+                print("Successfully pushed fixes to remote")
+            else:
+                print("Failed to push changes - manual push may be required")
+        else:
+            print("Failed to commit fixes")
 
 
 if __name__ == "__main__":
