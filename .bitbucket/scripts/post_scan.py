@@ -12,16 +12,12 @@ Environment variables used (all provided by Pipelines):
   BITBUCKET_REPO_SLUG      – repo slug, e.g. "inconnu"
   BITBUCKET_WORKSPACE      – workspace id, e.g. "0xjgv"
 
-Authentication (one of these options):
-  Option 1: App Password (recommended for full access)
-    BB_API_USER              – Bitbucket username (set as secured variable)
-    BB_API_TOKEN             – Bitbucket app-password with `pullrequest:write`
+Authentication (automatically detected, no setup required):
+  BITBUCKET_REPO_ACCESS_TOKEN – Built-in repository access token (preferred)
+  OAUTH_TOKEN                 – Built-in OAuth token (fallback)
 
-  Option 2: Repository Access Token
-    BITBUCKET_REPO_ACCESS_TOKEN – Repository access token with PR write permissions
-
-  Note: Without authentication, the script will still process issues and can apply
-  fixes locally (with BB_AUTO_COMMIT_FIXES=true) but won't post PR comments.
+  Note: These tokens are automatically provided by Bitbucket Pipelines with
+  appropriate permissions for the current repository and PR operations.
 
 Optional configuration:
   BB_SUGGESTION_FORMAT     – "enhanced" (default) or "raw" for comment format
@@ -70,29 +66,26 @@ def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> bool:
 
     Returns True if successful, False otherwise.
     """
-    # Check if we have authentication credentials
+    # Get authentication token from Bitbucket Pipelines built-in variables
     try:
-        api_token = os.environ.get("BB_API_TOKEN")
-        api_user = os.environ.get("BB_API_USER")
-
-        if not api_user or not api_token:
-            # Try repository access token as fallback
-            repo_token = os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN")
-            if repo_token:
-                # Use Bearer auth with repository access token
-                headers = {"Authorization": f"Bearer {repo_token}"}
+        # Try repository access token first (preferred)
+        repo_token = os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN")
+        if repo_token:
+            headers = {"Authorization": f"Bearer {repo_token}"}
+            auth = None
+        else:
+            # Fallback to OAuth token
+            oauth_token = os.environ.get("OAUTH_TOKEN")
+            if oauth_token:
+                headers = {"Authorization": f"Bearer {oauth_token}"}
                 auth = None
             else:
                 sys.stderr.write(
-                    "Warning: No authentication configured. Set BB_API_USER/BB_API_TOKEN or use a repository access token.\n"
+                    "Warning: No authentication token found. Expected BITBUCKET_REPO_ACCESS_TOKEN or OAUTH_TOKEN.\n"
                 )
                 return False
-        else:
-            # Use basic auth with username/app password
-            auth = (api_user, api_token)
-            headers = None
     except Exception as exc:
-        sys.stderr.write(f"Error checking authentication: {exc}\n")
+        sys.stderr.write(f"Error getting authentication token: {exc}\n")
         return False
 
     url = (
@@ -107,11 +100,7 @@ def _create_comment(pr_id: str, inline_path: str, line: int, text: str) -> bool:
     }
 
     try:
-        if headers:
-            resp = requests.post(url, json=payload, headers=headers, timeout=10)
-        else:
-            resp = requests.post(url, json=payload, auth=auth, timeout=10)
-
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
         resp.raise_for_status()
         return True
     except requests.HTTPError as err:
@@ -435,8 +424,7 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
 
     # Check if authentication is configured
     auth_configured = bool(
-        (os.environ.get("BB_API_USER") and os.environ.get("BB_API_TOKEN"))
-        or os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN")
+        os.environ.get("BITBUCKET_REPO_ACCESS_TOKEN") or os.environ.get("OAUTH_TOKEN")
     )
 
     for issue_data in _iter_issue_files(path):
@@ -472,9 +460,9 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
     # Print summary
     if not auth_configured:
         print(f"\n⚠️  Processed {issue_count} security issues from {directory}")
-        print("   Authentication not configured - unable to post PR comments.")
+        print("   No authentication tokens found - unable to post PR comments.")
         print(
-            "   Run 'python .bitbucket/scripts/post_setup_comment.py' for setup instructions."
+            "   This should not happen in Bitbucket Pipelines. Check repository settings."
         )
     else:
         print(
