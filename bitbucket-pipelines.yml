@@ -46,18 +46,8 @@ pipelines:
               done
 
             - pip install --quiet requests
-
-            # Show setup instructions if authentication is not configured
-            - python .bitbucket/scripts/post_setup_comment.py corgea_issues || true
-
             # Post issues as inline PR comments with suggested fixes
-            # This requires authentication to be configured (see setup comment above)
-            # Optional env vars:
-            #   BB_SUGGESTION_FORMAT=enhanced|raw
-            #   BB_USE_SUGGESTION_BLOCKS=true|false
-            #   BB_AUTO_COMMIT_FIXES=true|false (automatically apply and commit fixes)
-            # - export BB_AUTO_COMMIT_FIXES=true  # Uncomment to enable auto-commit
-            - python .bitbucket/scripts/post_scan.py corgea_issues
+            - python .bitbucket/scripts/auto_fix.py corgea_issues
 
             # ---------- Code Insights ----------
             # A helper that reads the *.json files and pushes annotations
