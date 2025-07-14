@@ -14,6 +14,8 @@ Environment variables used (all provided by Pipelines):
 
 The script will request changes on the PR if security issues are found,
 or remove any existing change request if no issues are found.
+Additionally, creates individual tasks for each security issue with detailed
+fix suggestions when available.
 """
 
 import json
@@ -115,6 +117,66 @@ def _remove_change_request(pr_id: str) -> bool:
         return False
 
 
+def _create_task(
+    pr_id: str,
+    content: str,
+    file_path: str | None = None,
+    line_number: int | None = None,
+) -> bool:
+    """Create a task on a pull request, optionally with an inline comment.
+
+    Args:
+        pr_id: Pull request ID
+        content: Task content
+        file_path: Optional file path for inline comment
+        line_number: Optional line number for inline comment
+
+    Returns True if successful, False otherwise.
+    """
+    access_token = os.environ.get("BITBUCKET_ACCESS_TOKEN")
+    if not access_token:
+        sys.stderr.write(
+            "Error: BITBUCKET_ACCESS_TOKEN environment variable not set.\n"
+        )
+        return False
+
+    url = (
+        f"{BB_API_ROOT}/repositories/"
+        f"{_env('BITBUCKET_WORKSPACE')}/"
+        f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/tasks"
+    )
+
+    payload = {"content": {"raw": content}, "pending": True}
+
+    # Add inline comment if file path and line number are provided
+    if file_path and line_number and line_number > 0:
+        payload["comment"] = {
+            "content": {
+                "raw": f"Security issue found at line {line_number}",
+                "markup": "markdown",
+            },
+            "inline": {"from": line_number, "to": line_number, "path": file_path},
+        }
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
+        return True
+    except requests.HTTPError as err:
+        sys.stderr.write(f"Failed to create task on PR {pr_id}: {err}\n")
+        if hasattr(resp, "text"):
+            sys.stderr.write(f"Response: {resp.text}\n")
+        return False
+    except Exception as exc:
+        sys.stderr.write(f"Error creating task: {exc}\n")
+        return False
+
+
 def _extract_issue_summary(issue: dict) -> dict:
     """Extract key information from a security issue.
 
@@ -145,6 +207,177 @@ def _extract_issue_summary(issue: dict) -> dict:
     urgency = issue.get("urgency", "UNKNOWN")
 
     return {"file": file_path, "line": line_no, "title": title, "urgency": urgency}
+
+
+def _extract_full_issue(issue: dict) -> dict:
+    """Extract comprehensive information from a security issue for task creation.
+
+    Returns a dict with all relevant issue information including auto-fix suggestions.
+    """
+    # Get the basic summary first
+    summary = _extract_issue_summary(issue)
+
+    # Extract additional detailed information
+    classification = issue.get("classification", {})
+    details = issue.get("details", {})
+    auto_fix = issue.get("auto_fix_suggestion", {})
+    location = issue.get("location", {})
+    file_info = location.get("file", {})
+    project_info = location.get("project", {})
+    auto_triage = issue.get("auto_triage", {})
+    false_positive = auto_triage.get("false_positive_detection", {})
+
+    # Build comprehensive issue data
+    full_issue = {
+        **summary,
+        "issue_id": issue.get("id", "unknown"),
+        "scan_id": issue.get("scan_id", ""),
+        "status": issue.get("status", ""),
+        "created_at": issue.get("created_at", ""),
+        "description": classification.get("description", ""),
+        "explanation": details.get("explanation", ""),
+        "cwe_id": classification.get("id", ""),
+        "file_name": file_info.get("name", ""),
+        "file_language": file_info.get("language", ""),
+        "project_name": project_info.get("name", ""),
+        "project_branch": project_info.get("branch", ""),
+        "git_sha": project_info.get("git_sha", ""),
+        "triage_status": false_positive.get("status", ""),
+        "triage_reasoning": false_positive.get("reasoning", ""),
+        "has_auto_fix": auto_fix.get("status") == "fix_available",
+    }
+
+    # Add auto-fix information if available
+    if full_issue["has_auto_fix"]:
+        patch = auto_fix.get("patch", {})
+        full_issue.update(
+            {
+                "fix_id": auto_fix.get("id", ""),
+                "fix_explanation": patch.get("explanation", ""),
+                "fix_diff": patch.get("diff", ""),
+            }
+        )
+
+    return full_issue
+
+
+def _build_task_content(issue: dict) -> str:
+    """Build task content from a detailed security issue.
+
+    Args:
+        issue: Dict containing comprehensive issue information from _extract_full_issue
+
+    Returns:
+        Formatted task content string
+    """
+    urgency_labels = {
+        "CR": "🔴 Critical",
+        "HI": "🟠 High",
+        "ME": "🟡 Medium",
+        "LO": "🟢 Low",
+    }
+    urgency_label = urgency_labels.get(issue["urgency"], f"⚪ {issue['urgency']}")
+
+    content_parts = [
+        f"## {urgency_label}: {issue['title']}",
+        "",
+        f"**File:** `{issue['file']}` (line {issue['line']})",
+        f"**CWE:** {issue['cwe_id']}" if issue["cwe_id"] else "",
+        f"**Language:** {issue['file_language']}" if issue.get("file_language") else "",
+        f"**Issue ID:** `{issue['issue_id']}`",
+        f"**Scan ID:** `{issue['scan_id']}`" if issue.get("scan_id") else "",
+        "",
+    ]
+
+    # Add project context if available
+    project_info = []
+    if issue.get("project_name"):
+        project_info.append(f"**Project:** {issue['project_name']}")
+    if issue.get("project_branch"):
+        project_info.append(f"**Branch:** {issue['project_branch']}")
+    if issue.get("git_sha"):
+        project_info.append(f"**Commit:** `{issue['git_sha'][:8]}...`")
+    if issue.get("created_at"):
+        project_info.append(f"**Detected:** {issue['created_at']}")
+
+    if project_info:
+        content_parts.extend(project_info)
+        content_parts.append("")
+
+    # Add triage information if available
+    if issue.get("triage_status"):
+        triage_emoji = "✅" if issue["triage_status"] == "valid" else "⚠️"
+        content_parts.extend(
+            [
+                f"### {triage_emoji} Auto-Triage: {issue['triage_status'].title()}",
+                issue.get("triage_reasoning", ""),
+                "",
+            ]
+        )
+
+    # Add description if available
+    if issue.get("description"):
+        content_parts.extend(
+            [
+                "### Description",
+                issue["description"],
+                "",
+            ]
+        )
+
+    # Add detailed explanation if available
+    if issue.get("explanation"):
+        content_parts.extend(
+            [
+                "### Technical Details",
+                issue["explanation"],
+                "",
+            ]
+        )
+
+    # Add auto-fix suggestion if available
+    if issue.get("has_auto_fix"):
+        content_parts.extend(
+            [
+                "### 🔧 Suggested Fix",
+                issue.get("fix_explanation", "Auto-fix available"),
+                "",
+            ]
+        )
+
+        if issue.get("fix_id"):
+            content_parts.extend(
+                [
+                    f"**Fix ID:** `{issue['fix_id']}`",
+                    "",
+                ]
+            )
+
+        if issue.get("fix_diff") and issue["fix_diff"].strip():
+            # Use language-specific syntax highlighting if available, otherwise default to diff
+            diff_language = issue.get("file_language", "diff")
+            content_parts.extend(
+                [
+                    "### Proposed Changes",
+                    f"```{diff_language}",
+                    issue["fix_diff"].strip(),
+                    "```",
+                    "",
+                ]
+            )
+
+    content_parts.extend(
+        [
+            "---",
+            "**Action Required:** Review and apply the necessary security fixes for this issue.",
+            "",
+            f"🔗 **[View Full Issue Details on Corgea](https://www.corgea.app/issue/{issue['issue_id']}/)**",
+            "",
+            "*Generated by Corgea Security Scan*",
+        ]
+    )
+
+    return "\n".join(filter(None, content_parts))
 
 
 def _iter_issue_files(dir_path: pathlib.Path):
@@ -206,9 +439,10 @@ def _build_change_request_message(issues: list[dict]) -> str:
             "---",
             "**Next Steps:**",
             "1. Review the security issues identified above",
-            "2. Apply the necessary fixes to your code",
-            "3. Push your changes to update this pull request",
-            "4. The security scan will automatically re-run to verify fixes",
+            "2. Check the individual tasks created for each issue with detailed fix suggestions",
+            "3. Apply the necessary fixes to your code",
+            "4. Push your changes to update this pull request",
+            "5. The security scan will automatically re-run to verify fixes",
             "",
             "*This change request was automatically generated by Corgea security scanning.*",
         ]
@@ -227,12 +461,15 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
     if not path.is_dir():
         raise SystemExit(f"Artifact directory '{directory}' not found")
 
-    # Collect all security issues
+    # Collect all security issues with full details
     issues = []
+    full_issues = []
     for issue_data in _iter_issue_files(path):
         try:
             issue_summary = _extract_issue_summary(issue_data)
+            full_issue = _extract_full_issue(issue_data)
             issues.append(issue_summary)
+            full_issues.append(full_issue)
         except Exception as exc:  # noqa: BLE001
             sys.stderr.write(f"Error parsing issue: {exc}\n")
             continue
@@ -240,6 +477,23 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
     print(f"Found {len(issues)} security issue(s) from {directory}")
 
     if issues:
+        # Create individual tasks for each issue with detailed information
+        task_success_count = 0
+        for full_issue in full_issues:
+            task_content = _build_task_content(full_issue)
+            if _create_task(
+                pr_id, task_content, full_issue["file"], full_issue["line"]
+            ):
+                task_success_count += 1
+            else:
+                sys.stderr.write(
+                    f"Failed to create task for issue {full_issue['issue_id']}\n"
+                )
+
+        print(
+            f"✅ Created {task_success_count}/{len(full_issues)} tasks for individual issues"
+        )
+
         # Security issues found - request changes
         message = _build_change_request_message(issues)
         if _request_changes(pr_id, message):
