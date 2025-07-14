@@ -1,12 +1,12 @@
 image: python:3.11      # or any base image with your security tools + Python + jq + make
 
 pipelines:
-  pull-request:
-    - step:
-        name: Build-Test-Security-Corgea
+  default:
+    - step: &scan           # anchor – reuse below
+        name: Build-Test-Scan
         artifacts:
-          - corgea_report.html
           - corgea_issues/**
+          - corgea_report.html
         caches:
           - pip
         script:
@@ -49,3 +49,14 @@ pipelines:
           # ---------- Code Insights ----------
           # A helper that reads the *.json files and pushes annotations
           # - ./scripts/post-code-insights.sh corgea_issues
+
+  pull-requests:
+    '**':                   # match every PR
+      - step: *scan         # run the same build+scan
+      - step:               # post comments only inside PRs
+          name: Post PR Auto-Fixes
+          artifacts:
+            - corgea_issues/**
+          script:
+            - pip install --quiet requests
+            - python .bitbucket/scripts/post_scan.py corgea_issues
