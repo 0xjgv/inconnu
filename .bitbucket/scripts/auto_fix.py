@@ -117,19 +117,12 @@ def _remove_change_request(pr_id: str) -> bool:
         return False
 
 
-def _create_task(
-    pr_id: str,
-    content: str,
-    file_path: str | None = None,
-    line_number: int | None = None,
-) -> bool:
-    """Create a task on a pull request, optionally with an inline comment.
+def _create_task(pr_id: str, content: str) -> bool:
+    """Create a task on a pull request.
 
     Args:
         pr_id: Pull request ID
         content: Task content
-        file_path: Optional file path for inline comment
-        line_number: Optional line number for inline comment
 
     Returns True if successful, False otherwise.
     """
@@ -147,16 +140,6 @@ def _create_task(
     )
 
     payload = {"content": {"raw": content}, "pending": True}
-
-    # Add inline comment if file path and line number are provided
-    if file_path and line_number and line_number > 0:
-        payload["comment"] = {
-            "content": {
-                "raw": f"Security issue found at line {line_number}",
-                "markup": "markdown",
-            },
-            "inline": {"from": line_number, "to": line_number, "path": file_path},
-        }
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -481,9 +464,7 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
         task_success_count = 0
         for full_issue in full_issues:
             task_content = _build_task_content(full_issue)
-            if _create_task(
-                pr_id, task_content, full_issue["file"], full_issue["line"]
-            ):
+            if _create_task(pr_id, task_content):
                 task_success_count += 1
             else:
                 sys.stderr.write(
