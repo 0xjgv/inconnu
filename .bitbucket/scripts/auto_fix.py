@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ruff: noqa: S603
 """
-Request changes on a Bitbucket pull request based on Corgea security scan results.
+Create tasks on a Bitbucket pull request based on Corgea security scan results.
 
 Usage (inside Bitbucket Pipelines step):
-  python .bitbucket/scripts/post_scan.py corgea_issues/
+  python .bitbucket/scripts/auto_fix.py corgea_issues/
 
 Environment variables used (all provided by Pipelines):
   BITBUCKET_PR_ID          – current PR id (empty when not in PR context)
@@ -12,10 +12,9 @@ Environment variables used (all provided by Pipelines):
   BITBUCKET_WORKSPACE      – workspace id, e.g. "0xjgv"
   BITBUCKET_ACCESS_TOKEN   – access token for authentication
 
-The script will request changes on the PR if security issues are found,
-or remove any existing change request if no issues are found.
-Additionally, creates individual tasks for each security issue with detailed
-fix suggestions when available.
+The script will create tasks on the PR for security issues found:
+- Individual detailed tasks for each security issue with fix suggestions
+- A summary task with an overview of all security issues found
 """
 
 import json
@@ -41,88 +40,8 @@ def _env(key: str) -> str:
         raise ConfigError(f"Missing required env-var: {key}") from exc
 
 
-def _request_changes(pr_id: str, message: str) -> bool:
-    """Request changes on a pull request.
-
-    Returns True if successful, False otherwise.
-    """
-    access_token = os.environ.get("BITBUCKET_ACCESS_TOKEN")
-    if not access_token:
-        sys.stderr.write(
-            "Error: BITBUCKET_ACCESS_TOKEN environment variable not set.\n"
-        )
-        return False
-
-    url = (
-        f"{BB_API_ROOT}/repositories/"
-        f"{_env('BITBUCKET_WORKSPACE')}/"
-        f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/request-changes"
-    )
-
-    payload = {"message": message}
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=10)
-        resp.raise_for_status()
-        return True
-    except requests.HTTPError as err:
-        sys.stderr.write(f"Failed to request changes on PR {pr_id}: {err}\n")
-        if hasattr(resp, "text"):
-            sys.stderr.write(f"Response: {resp.text}\n")
-        return False
-    except Exception as exc:
-        sys.stderr.write(f"Error requesting changes: {exc}\n")
-        return False
-
-
-def _remove_change_request(pr_id: str) -> bool:
-    """Remove change request from a pull request.
-
-    Returns True if successful, False otherwise.
-    """
-    access_token = os.environ.get("BITBUCKET_ACCESS_TOKEN")
-    if not access_token:
-        sys.stderr.write(
-            "Error: BITBUCKET_ACCESS_TOKEN environment variable not set.\n"
-        )
-        return False
-
-    url = (
-        f"{BB_API_ROOT}/repositories/"
-        f"{_env('BITBUCKET_WORKSPACE')}/"
-        f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/request-changes"
-    )
-
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-    try:
-        resp = requests.delete(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        return True
-    except requests.HTTPError as err:
-        # 404 is expected if no change request exists
-        if resp.status_code == 404:
-            return True
-        sys.stderr.write(f"Failed to remove change request on PR {pr_id}: {err}\n")
-        if hasattr(resp, "text"):
-            sys.stderr.write(f"Response: {resp.text}\n")
-        return False
-    except Exception as exc:
-        sys.stderr.write(f"Error removing change request: {exc}\n")
-        return False
-
-
-def _create_task(pr_id: str, content: str) -> bool:
-    """Create a task on a pull request.
-
-    Args:
-        pr_id: Pull request ID
-        content: Task content
+def _create_summary_task(pr_id: str, message: str) -> bool:
+    """Create a summary task on a pull request for all security issues.
 
     Returns True if successful, False otherwise.
     """
@@ -139,7 +58,106 @@ def _create_task(pr_id: str, content: str) -> bool:
         f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/tasks"
     )
 
-    payload = {"content": {"raw": content}, "pending": True}
+    payload = {"content": {"raw": message, "markup": "markdown"}, "pending": True}
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
+        return True
+    except requests.HTTPError as err:
+        sys.stderr.write(f"Failed to create summary task on PR {pr_id}: {err}\n")
+        if hasattr(resp, "text"):
+            sys.stderr.write(f"Response: {resp.text}\n")
+        return False
+    except Exception as exc:
+        sys.stderr.write(f"Error creating summary task: {exc}\n")
+        return False
+
+
+def _create_inline_comment(
+    pr_id: str, content: str, file_path: str, line_number: int
+) -> int | None:
+    """Create an inline comment on a pull request.
+
+    Args:
+        pr_id: Pull request ID
+        content: Comment content
+        file_path: File path for the inline comment
+        line_number: Line number for the inline comment
+
+    Returns comment ID if successful, None otherwise.
+    """
+    access_token = os.environ.get("BITBUCKET_ACCESS_TOKEN")
+    if not access_token:
+        sys.stderr.write(
+            "Error: BITBUCKET_ACCESS_TOKEN environment variable not set.\n"
+        )
+        return None
+
+    url = (
+        f"{BB_API_ROOT}/repositories/"
+        f"{_env('BITBUCKET_WORKSPACE')}/"
+        f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/comments"
+    )
+
+    payload = {
+        "content": {"raw": content},
+        "inline": {"from": line_number, "to": line_number, "path": file_path},
+    }
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
+        comment_data = resp.json()
+        return comment_data.get("id")
+    except requests.HTTPError as err:
+        sys.stderr.write(f"Failed to create inline comment on PR {pr_id}: {err}\n")
+        if hasattr(resp, "text"):
+            sys.stderr.write(f"Response: {resp.text}\n")
+        return None
+    except Exception as exc:
+        sys.stderr.write(f"Error creating inline comment: {exc}\n")
+        return None
+
+
+def _create_task(pr_id: str, content: str, comment_id: int | None = None) -> bool:
+    """Create a task on a pull request, optionally linked to a comment.
+
+    Args:
+        pr_id: Pull request ID
+        content: Task content
+        comment_id: Optional comment ID to link the task to
+
+    Returns True if successful, False otherwise.
+    """
+    access_token = os.environ.get("BITBUCKET_ACCESS_TOKEN")
+    if not access_token:
+        sys.stderr.write(
+            "Error: BITBUCKET_ACCESS_TOKEN environment variable not set.\n"
+        )
+        return False
+
+    url = (
+        f"{BB_API_ROOT}/repositories/"
+        f"{_env('BITBUCKET_WORKSPACE')}/"
+        f"{_env('BITBUCKET_REPO_SLUG')}/pullrequests/{pr_id}/tasks"
+    )
+
+    payload = {"content": {"raw": content, "markup": "markdown"}, "pending": True}
+
+    # Link to comment if provided
+    if comment_id:
+        payload["comment"] = {"id": comment_id}
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -158,6 +176,34 @@ def _create_task(pr_id: str, content: str) -> bool:
     except Exception as exc:
         sys.stderr.write(f"Error creating task: {exc}\n")
         return False
+
+
+def _create_comment_and_task(pr_id: str, issue: dict) -> bool:
+    """Create an inline comment and linked task for a security issue.
+
+    Args:
+        pr_id: Pull request ID
+        issue: Dict containing comprehensive issue information
+
+    Returns True if both comment and task created successfully, False otherwise.
+    """
+    # Step 1: Create inline comment with concise issue details
+    comment_content = _build_inline_comment_content(issue)
+    comment_id = _create_inline_comment(
+        pr_id, comment_content, issue["file"], issue["line"]
+    )
+
+    if not comment_id:
+        # Fallback: create standalone task if comment creation fails
+        sys.stderr.write(
+            f"Failed to create inline comment for issue {issue['issue_id']}, creating standalone task\n"
+        )
+        task_content = _build_task_content(issue)
+        return _create_task(pr_id, task_content)
+
+    # Step 2: Create detailed task linked to the comment
+    task_content = _build_task_content(issue)
+    return _create_task(pr_id, task_content, comment_id)
 
 
 def _extract_issue_summary(issue: dict) -> dict:
@@ -242,6 +288,71 @@ def _extract_full_issue(issue: dict) -> dict:
         )
 
     return full_issue
+
+
+def _build_inline_comment_content(issue: dict) -> str:
+    """Build concise inline comment content for diff view.
+
+    Args:
+        issue: Dict containing comprehensive issue information from _extract_full_issue
+
+    Returns:
+        Formatted inline comment content string
+    """
+    urgency_labels = {"CR": "🔴", "HI": "🟠", "ME": "🟡", "LO": "🟢"}
+    urgency_emoji = urgency_labels.get(issue["urgency"], "⚪")
+
+    parts = [
+        f"## {urgency_emoji} Security Issue: {issue['title']}",
+        "",
+        f"**{issue['cwe_id']}** - {issue.get('description', 'Security vulnerability detected')}",
+        "",
+    ]
+
+    # Add concise explanation
+    if issue.get("explanation"):
+        # Clean up HTML and truncate for inline view
+        explanation = (
+            issue["explanation"].replace("<br><br>", "\n\n").replace("<br>", "\n")
+        )
+        explanation = explanation.replace("<code>", "`").replace("</code>", "`")
+        if len(explanation) > 300:
+            explanation = explanation[:300] + "..."
+        parts.extend(
+            [
+                "**Issue:**",
+                explanation,
+                "",
+            ]
+        )
+
+    # Add fix if available
+    if (
+        issue.get("has_auto_fix")
+        and issue.get("fix_diff")
+        and issue["fix_diff"].strip()
+    ):
+        parts.extend(
+            [
+                "**🔧 Suggested Fix:**",
+                issue.get("fix_explanation", "Auto-fix available")[:200]
+                + ("..." if len(issue.get("fix_explanation", "")) > 200 else ""),
+                "",
+                "**Code Changes:**",
+                f"```{issue.get('file_language', 'diff')}",
+                issue["fix_diff"].strip(),
+                "```",
+                "",
+            ]
+        )
+
+    parts.extend(
+        [
+            f"📋 **[Full Details in Task](https://bitbucket.org/{_env('BITBUCKET_WORKSPACE')}/{_env('BITBUCKET_REPO_SLUG')}/pull-requests/{os.environ.get('BITBUCKET_PR_ID', '')})** | 🔗 **[View on Corgea](https://www.corgea.app/issue/{issue['issue_id']}/)**"
+        ]
+    )
+
+    return "\n".join(filter(None, parts))
 
 
 def _build_task_content(issue: dict) -> str:
@@ -375,8 +486,8 @@ def _iter_issue_files(dir_path: pathlib.Path):
             sys.stderr.write(f"Skipping invalid JSON {json_file}: {exc}\n")
 
 
-def _build_change_request_message(issues: list[dict]) -> str:
-    """Build a comprehensive change request message from security issues."""
+def _build_summary_task_message(issues: list[dict]) -> str:
+    """Build a comprehensive summary task message from security issues."""
     if not issues:
         return ""
 
@@ -427,7 +538,7 @@ def _build_change_request_message(issues: list[dict]) -> str:
             "4. Push your changes to update this pull request",
             "5. The security scan will automatically re-run to verify fixes",
             "",
-            "*This change request was automatically generated by Corgea security scanning.*",
+            "*This summary task was automatically generated by Corgea security scanning.*",
         ]
     )
 
@@ -460,26 +571,38 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
     print(f"Found {len(issues)} security issue(s) from {directory}")
 
     if issues:
-        # Create individual tasks for each issue with detailed information
+        # Create individual inline comments and tasks for each issue
         task_success_count = 0
+        comment_success_count = 0
         for full_issue in full_issues:
-            task_content = _build_task_content(full_issue)
-            if _create_task(pr_id, task_content):
+            if _create_comment_and_task(pr_id, full_issue):
                 task_success_count += 1
+                # Check if it has valid file/line for inline comment
+                if (
+                    full_issue.get("file")
+                    and full_issue.get("line")
+                    and full_issue["line"] > 0
+                ):
+                    comment_success_count += 1
             else:
                 sys.stderr.write(
-                    f"Failed to create task for issue {full_issue['issue_id']}\n"
+                    f"Failed to create comment and task for issue {full_issue['issue_id']}\n"
                 )
 
-        print(
-            f"✅ Created {task_success_count}/{len(full_issues)} tasks for individual issues"
-        )
-
-        # Security issues found - request changes
-        message = _build_change_request_message(issues)
-        if _request_changes(pr_id, message):
+        if comment_success_count > 0:
             print(
-                f"✅ Requested changes on PR #{pr_id} due to {len(issues)} security issue(s)"
+                f"✅ Created {comment_success_count} inline comments with linked tasks and {task_success_count - comment_success_count} standalone tasks ({task_success_count}/{len(full_issues)} total)"
+            )
+        else:
+            print(
+                f"✅ Created {task_success_count}/{len(full_issues)} standalone tasks for individual issues"
+            )
+
+        # Security issues found - create summary task
+        message = _build_summary_task_message(issues)
+        if _create_summary_task(pr_id, message):
+            print(
+                f"✅ Created summary task on PR #{pr_id} for {len(issues)} security issue(s)"
             )
 
             # Print summary by urgency
@@ -492,16 +615,11 @@ def main(directory: str = "corgea_issues") -> None:  # pragma: no cover
             for urgency, count in sorted(by_urgency.items()):
                 print(f"  {urgency}: {count}")
         else:
-            print(f"❌ Failed to request changes on PR #{pr_id}")
+            print(f"❌ Failed to create summary task on PR #{pr_id}")
             sys.exit(1)
     else:
-        # No security issues - remove any existing change request
-        if _remove_change_request(pr_id):
-            print(
-                f"✅ No security issues found - removed change request from PR #{pr_id}"
-            )
-        else:
-            print("✅ No security issues found (no change request to remove)")
+        # No security issues found
+        print("✅ No security issues found - no tasks created")
 
 
 if __name__ == "__main__":
