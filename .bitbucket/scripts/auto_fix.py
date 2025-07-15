@@ -334,6 +334,20 @@ def _build_inline_comment_content(issue: dict) -> str:
         and issue.get("fix_diff")
         and issue["fix_diff"].strip()
     ):
+        # Clean up fix explanation HTML
+        fix_explanation = issue.get("fix_explanation", "Auto-fix available")
+        fix_explanation = fix_explanation.replace("<br><br>", "\n\n").replace(
+            "<br>", "\n"
+        )
+        fix_explanation = fix_explanation.replace("<code>", "`").replace("</code>", "`")
+        # Handle list items - add newline before each item except the first
+        fix_explanation = fix_explanation.replace("</li><li>", "\n- ")
+        fix_explanation = fix_explanation.replace("<li>", "- ").replace("</li>", "")
+        fix_explanation = fix_explanation.replace("<ul>", "").replace("</ul>", "")
+        fix_explanation = fix_explanation.replace("<ol>", "").replace("</ol>", "")
+        # Strip leading/trailing whitespace and ensure proper line breaks
+        fix_explanation = fix_explanation.strip()
+
         parts.extend(
             [
                 "---",
@@ -341,23 +355,22 @@ def _build_inline_comment_content(issue: dict) -> str:
                 "### 🔧 Suggested Fix",
                 "",
                 "**Fix explanation:**",
-                issue.get("fix_explanation", "Auto-fix available"),
-                "---",
                 "",
+                fix_explanation,
+                "\n",
                 "**📊 Changes (diff view):**",
                 "```diff",
                 issue["fix_diff"].strip(),
                 "```",
-                "---",
                 "",
                 "**📥 Apply this fix:**",
-                "",
+                "\n",
                 f"1. [Download patch file](https://www.corgea.app/issue/fix-diff/{issue['issue_id']}?download=true)",
-                "",
+                "\n",
                 "2. Apply it: `git apply corgea-fix-{}.patch`".format(
                     issue["issue_id"][:8]
                 ),
-                "",
+                "\n",
             ]
         )
 
