@@ -309,18 +309,20 @@ def _build_inline_comment_content(issue: dict) -> str:
         "",
     ]
 
-    # Add concise explanation
+    # Add collapsible detailed explanation
     if issue.get("explanation"):
-        # Clean up HTML and truncate for inline view
+        # Clean up HTML for better markdown display
         explanation = (
             issue["explanation"].replace("<br><br>", "\n\n").replace("<br>", "\n")
         )
         explanation = explanation.replace("<code>", "`").replace("</code>", "`")
-        if len(explanation) > 300:
-            explanation = explanation[:300] + "..."
+
         parts.extend(
             [
-                "**Issue:**",
+                "---",
+                "",
+                "### 📋 Detailed Explanation",
+                "",
                 explanation,
                 "",
             ]
@@ -334,22 +336,33 @@ def _build_inline_comment_content(issue: dict) -> str:
     ):
         parts.extend(
             [
-                "**🔧 Suggested Fix:**",
-                issue.get("fix_explanation", "Auto-fix available")[:200]
-                + ("..." if len(issue.get("fix_explanation", "")) > 200 else ""),
+                "---",
                 "",
-                "**Code Changes:**",
-                f"```{issue.get('file_language', 'diff')}",
+                "### 🔧 Suggested Fix",
+                "",
+                "**Fix explanation:**",
+                issue.get("fix_explanation", "Auto-fix available"),
+                "---",
+                "",
+                "**📊 Changes (diff view):**",
+                "```diff",
                 issue["fix_diff"].strip(),
                 "```",
+                "---",
+                "",
+                "**📥 Apply this fix:**",
+                "",
+                f"1. [Download patch file](https://www.corgea.app/issue/fix-diff/{issue['issue_id']}?download=true)",
+                "",
+                "2. Apply it: `git apply corgea-fix-{}.patch`".format(
+                    issue["issue_id"][:8]
+                ),
                 "",
             ]
         )
 
     parts.extend(
-        [
-            f"📋 **[Full Details in Task](https://bitbucket.org/{_env('BITBUCKET_WORKSPACE')}/{_env('BITBUCKET_REPO_SLUG')}/pull-requests/{os.environ.get('BITBUCKET_PR_ID', '')})** | 🔗 **[View on Corgea](https://www.corgea.app/issue/{issue['issue_id']}/)**"
-        ]
+        [f"🔗 **[View on Corgea](https://www.corgea.app/issue/{issue['issue_id']}/)**"]
     )
 
     return "\n".join(filter(None, parts))
