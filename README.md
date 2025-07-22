@@ -443,7 +443,7 @@ To publish a new version to PyPI:
 4. **Manual Publishing** (if needed):
    ```bash
    # Build the package
-   python -m build
+   uv build
 
    # Check the package
    twine check dist/*
