@@ -1,0 +1,16 @@
+include README.md
+include LICENSE
+include pyproject.toml
+recursive-include inconnu *.py
+recursive-include tests *.py
+recursive-include tests/mocks *.txt
+exclude *.pyc
+exclude __pycache__
+exclude .git*
+exclude .pytest_cache
+exclude examples.ipynb
+exclude notes.md
+exclude issues.json
+exclude bitbucket-pipelines.yml
+exclude CLAUDE.md
+prune .bitbucket/
