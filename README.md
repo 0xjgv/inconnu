@@ -21,9 +21,48 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 ### Prerequisites
 
 - Python 3.10 or higher
-- UV package manager (recommended) or pip
+- pip (Python package manager)
 
-### Quick Start
+### Install from PyPI
+
+```bash
+# Basic installation (without language models)
+pip install inconnu
+
+# Install with English language support
+pip install inconnu[en]
+
+# Install with specific language support
+pip install inconnu[de]     # German
+pip install inconnu[fr]     # French
+pip install inconnu[es]     # Spanish
+pip install inconnu[it]     # Italian
+
+# Install with multiple languages
+pip install inconnu[en,de,fr]
+
+# Install with all language support
+pip install inconnu[all]
+```
+
+### Download Language Models
+
+After installation, download the required spaCy models:
+
+```bash
+# Using the built-in CLI tool
+inconnu-download en            # Download default English model
+inconnu-download de fr         # Download German and French models
+inconnu-download en --size large  # Download large English model
+inconnu-download all           # Download all default models
+inconnu-download --list        # List all available models
+
+# Or using spaCy directly
+python -m spacy download en_core_web_sm
+python -m spacy download de_core_news_sm
+```
+
+### Install from Source
 
 1. **Clone the repository**:
    ```bash
@@ -31,35 +70,18 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
    cd inconnu
    ```
 
-2. **Install dependencies**:
+2. **Install with UV (recommended for development)**:
    ```bash
-   make install
+   make install          # Install dependencies
+   make model-de        # Download German model
+   make test            # Run tests
    ```
 
-3. **Download required NLP models**:
+3. **Or install with pip**:
    ```bash
-   make model-de    # German model
+   pip install -e .     # Install in editable mode
+   python -m spacy download en_core_web_sm
    ```
-
-4. **Verify installation**:
-   ```bash
-   make test
-   ```
-
-### Manual Installation
-
-If you prefer manual installation:
-
-```bash
-# Install dependencies
-uv sync --group dev
-
-# Download spaCy model
-uv run python -m spacy download en_core_web_sm
-
-# Run tests
-uv run pytest -vv
-```
 
 ### Installing Additional Models
 
@@ -398,6 +420,66 @@ make lint
 - **Documentation**: Check existing docs and contribute improvements
 
 Thank you for helping make Inconnu a better tool for data privacy and GDPR compliance!
+
+## Publishing to PyPI
+
+### For Maintainers
+
+To publish a new version to PyPI:
+
+1. **Configure Trusted Publisher** (first time only):
+   - Go to https://pypi.org/manage/project/inconnu/settings/publishing/
+   - Add a new trusted publisher:
+     - Publisher: GitHub
+     - Organization/username: `0xjgv`
+     - Repository name: `inconnu`
+     - Workflow name: `publish.yml`
+     - Environment name: `pypi` (optional but recommended)
+   - For Test PyPI, do the same at https://test.pypi.org with environment name: `testpypi`
+
+2. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
+
+3. **Create a Git Tag**:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+4. **GitHub Actions**: The workflow will automatically:
+   - Run tests on Python 3.10, 3.11, and 3.12
+   - Build the package
+   - Publish to PyPI using Trusted Publisher (no API tokens needed!)
+   - Generate PEP 740 attestations for security
+
+5. **Test PyPI Publishing**:
+   - Use workflow_dispatch to manually trigger Test PyPI publishing
+   - Go to Actions → Publish to PyPI → Run workflow
+
+### Manual Publishing (if needed)
+
+```bash
+# Build the package
+uv build
+
+# Check the package
+twine check dist/*
+
+# Upload to Test PyPI (requires API token)
+twine upload --repository testpypi dist/*
+
+# Upload to PyPI (requires API token)
+twine upload dist/*
+```
+
+### GitHub Environments (Recommended)
+
+Configure GitHub environments for additional security:
+1. Go to Settings → Environments
+2. Create `pypi` and `testpypi` environments
+3. Add protection rules:
+   - Required reviewers
+   - Restrict to specific tags (e.g., `v*`)
+   - Add deployment branch restrictions
 
 ## Additional Resources
 

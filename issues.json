@@ -1,0 +1,234 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "fix_available"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.719Z",
+      "details": null,
+      "id": "9f27a2ca-cd59-4aba-9849-eb8e9688b4fe",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 94,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    },
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "fix_available"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.835Z",
+      "details": null,
+      "id": "a8806fad-6732-4d74-8d18-87788444e9a9",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 97,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    },
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "fix_available"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.592Z",
+      "details": null,
+      "id": "2c0dce32-eccf-4814-96c5-57a51e8ca100",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 110,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    },
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "fix_available"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.460Z",
+      "details": null,
+      "id": "30e62d9b-c779-4894-b662-cc4f3e15a932",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 79,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    },
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "fix_available"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.218Z",
+      "details": null,
+      "id": "24809ee1-7b41-4352-b33a-4c2c0fe20fcd",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 54,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    },
+    {
+      "auto_fix_suggestion": {
+        "full_code": null,
+        "id": null,
+        "patch": null,
+        "status": "on_hold"
+      },
+      "auto_triage": {
+        "false_positive_detection": {
+          "reasoning": null,
+          "status": "valid"
+        }
+      },
+      "classification": {
+        "description": "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+        "id": "CWE-625",
+        "name": "Permissive Regular Expression"
+      },
+      "created_at": "2025-07-11T15:07:25.337Z",
+      "details": null,
+      "id": "ede26091-c437-4008-90a6-e9683f6a4b9f",
+      "location": {
+        "file": {
+          "language": "python",
+          "name": "patterns.py",
+          "path": "inconnu/nlp/patterns.py"
+        },
+        "line_number": 57,
+        "project": {
+          "branch": "main",
+          "git_sha": "7257bc0f80f9b5656bf6d1309fcd2454affc733d",
+          "name": "build"
+        }
+      },
+      "scan_id": null,
+      "status": "accepted_risk",
+      "urgency": "LO"
+    }
+  ],
+  "total_pages": 1
+}

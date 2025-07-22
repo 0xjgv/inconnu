@@ -1,0 +1,54 @@
+image: python:3.11      # or any base image with your security tools + Python + jq + make
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: Build, test, scan, & fix PR
+          caches:
+            - pip
+          artifacts:
+            - corgea_report.html
+            - corgea_issues/**
+          script:
+            # ---------- Build & Test ----------
+            - apt-get update && apt-get install -y --no-install-recommends make jq
+            - pip install --quiet uv
+            - make install          # install dev dependencies via uv
+            - make model-de         # pull German spaCy model required by tests
+            - make model-it         # pull Italian spaCy model required by tests
+            - make lint             # static analysis via ruff
+            - make test             # run pytest suite
+            - source .venv/bin/activate     # activate the virtual environment
+
+            # ---------- Corgea Scan ----------
+            - uv add --group dev corgea-cli # install corgea-cli via uv
+            - corgea login ${CORGEA_API_TOKEN} # login to corgea
+            - corgea scan --out-format=html --out-file=corgea_report.html # Corgea scan the repo
+            - SCAN_ID=$(corgea ls | grep -oE '^[0-9a-f-]{36}' | head -1) # get the scan id
+            - |
+              if [ -n "$SCAN_ID" ]; then
+                echo "SCAN_ID found: $SCAN_ID"
+              else
+                echo "No SCAN_ID found with 'corgea ls'"
+                exit 1
+              fi
+
+            # ---------- Retrieve & iterate through issues ----------
+            - mkdir -p corgea_issues
+            # List ALL issues for this scan, in JSON
+            - corgea ls --issues --scan-id "${SCAN_ID}" --json > issues.json
+            # Extract each issue ID and loop
+            - |
+              for ISSUE_ID in $(jq -r '.results[].id' issues.json); do
+                echo "Fetching details for $ISSUE_ID"
+                corgea inspect --issue "$ISSUE_ID" --json > "corgea_issues/${ISSUE_ID}.json"
+              done
+
+            - pip install --quiet requests
+            # Post issues as inline PR comments with suggested fixes
+            - python .bitbucket/scripts/auto_fix.py corgea_issues
+
+            # ---------- Code Insights ----------
+            # A helper that reads the *.json files and pushes annotations
+            # - ./scripts/post-code-insights.sh corgea_issues

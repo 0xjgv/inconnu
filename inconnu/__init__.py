@@ -14,6 +14,9 @@ from .exceptions import (
 from .nlp.entity_redactor import EntityRedactor
 from .nlp.interfaces import NERComponent, ProcessedData
 
+# Package version
+__version__ = "0.1.0"
+
 # Export key classes and exceptions for easy importing
 __all__ = [
     "Config",
@@ -25,6 +28,7 @@ __all__ = [
     "TextTooLongError",
     "ConfigurationError",
     "ModelNotFoundError",
+    "__version__",
 ]
 
 
