@@ -21,9 +21,48 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 ### Prerequisites
 
 - Python 3.10 or higher
-- UV package manager (recommended) or pip
+- pip (Python package manager)
 
-### Quick Start
+### Install from PyPI
+
+```bash
+# Basic installation (without language models)
+pip install inconnu
+
+# Install with English language support
+pip install inconnu[en]
+
+# Install with specific language support
+pip install inconnu[de]     # German
+pip install inconnu[fr]     # French
+pip install inconnu[es]     # Spanish
+pip install inconnu[it]     # Italian
+
+# Install with multiple languages
+pip install inconnu[en,de,fr]
+
+# Install with all language support
+pip install inconnu[all]
+```
+
+### Download Language Models
+
+After installation, download the required spaCy models:
+
+```bash
+# Using the built-in CLI tool
+inconnu-download en            # Download default English model
+inconnu-download de fr         # Download German and French models
+inconnu-download en --size large  # Download large English model
+inconnu-download all           # Download all default models
+inconnu-download --list        # List all available models
+
+# Or using spaCy directly
+python -m spacy download en_core_web_sm
+python -m spacy download de_core_news_sm
+```
+
+### Install from Source
 
 1. **Clone the repository**:
    ```bash
@@ -31,35 +70,18 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
    cd inconnu
    ```
 
-2. **Install dependencies**:
+2. **Install with UV (recommended for development)**:
    ```bash
-   make install
+   make install          # Install dependencies
+   make model-de        # Download German model
+   make test            # Run tests
    ```
 
-3. **Download required NLP models**:
+3. **Or install with pip**:
    ```bash
-   make model-de    # German model
+   pip install -e .     # Install in editable mode
+   python -m spacy download en_core_web_sm
    ```
-
-4. **Verify installation**:
-   ```bash
-   make test
-   ```
-
-### Manual Installation
-
-If you prefer manual installation:
-
-```bash
-# Install dependencies
-uv sync --group dev
-
-# Download spaCy model
-uv run python -m spacy download en_core_web_sm
-
-# Run tests
-uv run pytest -vv
-```
 
 ### Installing Additional Models
 
@@ -398,6 +420,45 @@ make lint
 - **Documentation**: Check existing docs and contribute improvements
 
 Thank you for helping make Inconnu a better tool for data privacy and GDPR compliance!
+
+## Publishing to PyPI
+
+### For Maintainers
+
+To publish a new version to PyPI:
+
+1. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
+
+2. **Create a Git Tag**:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+3. **GitHub Actions**: The workflow will automatically:
+   - Run tests on Python 3.10, 3.11, and 3.12
+   - Build the package
+   - Publish to PyPI (requires `PYPI_API_TOKEN` secret)
+
+4. **Manual Publishing** (if needed):
+   ```bash
+   # Build the package
+   python -m build
+
+   # Check the package
+   twine check dist/*
+
+   # Upload to Test PyPI first
+   twine upload --repository testpypi dist/*
+
+   # Upload to PyPI
+   twine upload dist/*
+   ```
+
+### Required GitHub Secrets
+
+- `PYPI_API_TOKEN`: Your PyPI API token for publishing
+- `TEST_PYPI_API_TOKEN`: Your Test PyPI API token (optional)
 
 ## Additional Resources
 
