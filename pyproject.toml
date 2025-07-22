@@ -5,7 +5,7 @@ description = "GDPR-compliant data privacy tool for entity redaction and de-anon
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    {name = "0xjgv", email = "your.email@example.com"}
+    {name = "0xjgv", email = "juans.gaitan@gmail.com"}
 ]
 license = {text = "MIT"}
 keywords = ["nlp", "privacy", "gdpr", "anonymization", "pseudonymization", "spacy", "redaction", "pii"]

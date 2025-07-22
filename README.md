@@ -427,38 +427,59 @@ Thank you for helping make Inconnu a better tool for data privacy and GDPR compl
 
 To publish a new version to PyPI:
 
-1. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
+1. **Configure Trusted Publisher** (first time only):
+   - Go to https://pypi.org/manage/project/inconnu/settings/publishing/
+   - Add a new trusted publisher:
+     - Publisher: GitHub
+     - Organization/username: `0xjgv`
+     - Repository name: `inconnu`
+     - Workflow name: `publish.yml`
+     - Environment name: `pypi` (optional but recommended)
+   - For Test PyPI, do the same at https://test.pypi.org with environment name: `testpypi`
 
-2. **Create a Git Tag**:
+2. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
+
+3. **Create a Git Tag**:
    ```bash
    git tag v0.1.0
    git push origin v0.1.0
    ```
 
-3. **GitHub Actions**: The workflow will automatically:
+4. **GitHub Actions**: The workflow will automatically:
    - Run tests on Python 3.10, 3.11, and 3.12
    - Build the package
-   - Publish to PyPI (requires `PYPI_API_TOKEN` secret)
+   - Publish to PyPI using Trusted Publisher (no API tokens needed!)
+   - Generate PEP 740 attestations for security
 
-4. **Manual Publishing** (if needed):
-   ```bash
-   # Build the package
-   uv build
+5. **Test PyPI Publishing**:
+   - Use workflow_dispatch to manually trigger Test PyPI publishing
+   - Go to Actions → Publish to PyPI → Run workflow
 
-   # Check the package
-   twine check dist/*
+### Manual Publishing (if needed)
 
-   # Upload to Test PyPI first
-   twine upload --repository testpypi dist/*
+```bash
+# Build the package
+uv build
 
-   # Upload to PyPI
-   twine upload dist/*
-   ```
+# Check the package
+twine check dist/*
 
-### Required GitHub Secrets
+# Upload to Test PyPI (requires API token)
+twine upload --repository testpypi dist/*
 
-- `PYPI_API_TOKEN`: Your PyPI API token for publishing
-- `TEST_PYPI_API_TOKEN`: Your Test PyPI API token (optional)
+# Upload to PyPI (requires API token)
+twine upload dist/*
+```
+
+### GitHub Environments (Recommended)
+
+Configure GitHub environments for additional security:
+1. Go to Settings → Environments
+2. Create `pypi` and `testpypi` environments
+3. Add protection rules:
+   - Required reviewers
+   - Restrict to specific tags (e.g., `v*`)
+   - Add deployment branch restrictions
 
 ## Additional Resources
 
