@@ -1,5 +1,9 @@
 # Inconnu
 
+[![GitHub](https://img.shields.io/github/stars/0xjgv/inconnu)](https://github.com/0xjgv/inconnu)
+[![inconnu.ai](https://img.shields.io/badge/website-inconnu.ai-blue)](https://inconnu.ai)
+[![PyPI](https://img.shields.io/pypi/v/inconnu)](https://pypi.org/project/inconnu/)
+
 ## What is Inconnu?
 
 Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and de-anonymization. It provides cutting-edge NLP-based tools for anonymizing and pseudonymizing text data while maintaining data utility, ensuring your business meets stringent privacy regulations.
@@ -25,77 +29,61 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 ### Install from PyPI
 
-#### Using pip
-
 ```bash
-# Basic installation (without language models)
+# Using pip
 pip install inconnu
 
-# Install with English language support
-pip install inconnu[en]
-
-# Install with specific language support
-pip install inconnu[de]     # German
-pip install inconnu[fr]     # French
-pip install inconnu[es]     # Spanish
-pip install inconnu[it]     # Italian
-
-# Install with multiple languages
-pip install inconnu[en,de,fr]
-
-# Install with all language support
-pip install inconnu[all]
-```
-
-#### Using UV (Recommended)
-
-UV is a fast Python package manager that works seamlessly with Inconnu:
-
-```bash
-# Basic installation
+# Using UV (Recommended)
 uv add inconnu
-
-# Install with language support (models included as dependencies)
-uv add "inconnu[en]"         # English (small model)
-uv add "inconnu[de]"         # German (small model)
-uv add "inconnu[en,de,fr]"   # Multiple languages
-uv add "inconnu[all]"        # All languages (small models)
-
-# Install larger models for better accuracy
-uv add "inconnu[en-lg]"      # English large model
-uv add "inconnu[de-md]"      # German medium model
-uv add "inconnu[en-trf]"     # English transformer model (highest accuracy)
 ```
+
+**Note**: Language models are NOT included as optional dependencies. You'll need to download them separately using the `inconnu-download` command after installation (see below).
 
 ### Download Language Models
 
-#### For UV users
-
-With UV, models are installed as dependencies (see installation above). No additional download step required!
+After installing Inconnu, use the `inconnu-download` command to download spaCy language models:
 
 ```bash
-# Check installed models
+# Download default (small) models
+inconnu-download en              # English
+inconnu-download de              # German
+inconnu-download en de fr        # Multiple languages
+inconnu-download all             # All default models
+
+# Download specific model sizes
+inconnu-download en --size large       # Large English model
+inconnu-download en --size transformer # Transformer model (English only)
+
+# List available models and check what's installed
 inconnu-download --list
 
-# Get UV-specific installation help
+# Upgrade existing models
+inconnu-download en --upgrade
+
+# Get help for UV environments
 inconnu-download --uv-help
 ```
 
-#### For pip users
+#### How Model Installation Works
 
-After pip installation, download the required spaCy models:
+1. **No Optional Dependencies**: spaCy models are NOT included as pip/uv optional dependencies to avoid unnecessary downloads during dependency resolution
+2. **On-Demand Downloads**: The `inconnu-download` command downloads only the models you need
+3. **Smart Environment Detection**: Automatically detects UV environments and provides appropriate guidance
+4. **Verification**: Checks if models are already installed before downloading
 
+#### Available Model Sizes
+
+- **Small (sm)**: Default, fast processing, ~15-50MB, good for high-volume
+- **Medium (md)**: Better accuracy, ~50-200MB, moderate speed
+- **Large (lg)**: High accuracy, ~200-600MB, slower processing
+- **Transformer (trf)**: Highest accuracy, ~400MB+, GPU-optimized (English only)
+
+#### Alternative: Direct spaCy Download
+
+You can also use spaCy directly if preferred:
 ```bash
-# Using the built-in CLI tool
-inconnu-download en            # Download default English model
-inconnu-download de fr         # Download German and French models
-inconnu-download en --size large  # Download large English model
-inconnu-download all           # Download all default models
-inconnu-download --list        # List all available models
-
-# Or using spaCy directly
-python -m spacy download en_core_web_sm
-python -m spacy download de_core_news_sm
+python -m spacy download en_core_web_sm   # English small
+python -m spacy download de_core_news_lg  # German large
 ```
 
 ### Install from Source
@@ -108,9 +96,9 @@ python -m spacy download de_core_news_sm
 
 2. **Install with UV (recommended for development)**:
    ```bash
-   uv sync              # Install dependencies
-   uv add "inconnu[en,de]"  # Add language support
-   make test            # Run tests
+   uv sync                      # Install dependencies
+   inconnu-download en de       # Download language models
+   make test                    # Run tests
    ```
 
 3. **Or install with pip**:
@@ -119,66 +107,55 @@ python -m spacy download de_core_news_sm
    python -m spacy download en_core_web_sm
    ```
 
-### Installing Additional Models
+### Development Commands
 
-Inconnu supports multiple spaCy models for enhanced accuracy:
-
-#### Available Model Sizes
-
-- **Small (sm)**: ~15-50MB, fast processing, good for high-volume
-- **Medium (md)**: ~50-200MB, better accuracy, moderate speed
-- **Large (lg)**: ~200-600MB, high accuracy, slower processing
-- **Transformer (trf)**: ~400MB+, highest accuracy, GPU-optimized (English only)
-
-#### UV Installation (Recommended)
+For development, the Makefile provides convenience targets:
 
 ```bash
-# Install specific model sizes as dependencies
-uv add "inconnu[en-lg]"      # English large
-uv add "inconnu[de-md]"      # German medium
-uv add "inconnu[fr-lg]"      # French large
-uv add "inconnu[en-trf]"     # English transformer
-
-# Install multiple models
-uv add "inconnu[en-lg,de-lg,fr-lg]"
-```
-
-#### Traditional Installation
-
-```bash
-# Using make commands (for development)
+# Download models using make commands
+make model-en        # English small
 make model-de        # German small
 make model-it        # Italian small
 make model-es        # Spanish small
 make model-fr        # French small
 
-# Using spaCy directly
-python -m spacy download en_core_web_lg   # English large
-python -m spacy download de_core_news_md  # German medium
-python -m spacy download es_core_news_lg  # Spanish large
+# Other development commands
+make test           # Run tests
+make lint           # Check code with ruff
+make format         # Format code
+make clean          # Clean cache and format code
 ```
 
-#### Using Different Models
+### Using Different Models in Code
 
-To use a different model, specify it when initializing the EntityRedactor:
+To use a different model size, first download it, then specify it when initializing:
 
 ```python
-from inconnu.nlp.entity_redactor import EntityRedactor, SpacyModels
+from inconnu import Inconnu
+from inconnu.nlp.entity_redactor import SpacyModels
 
-# Use transformer model for highest accuracy
-entity_redactor = EntityRedactor(
-    custom_components=None,
+# First, download the model you want
+# $ inconnu-download en --size large
+
+# Then use it in your code
+inconnu = Inconnu(
     language="en",
-    model_name=SpacyModels.EN_CORE_WEB_TRF  # High accuracy transformer model
+    model_name=SpacyModels.EN_CORE_WEB_LG  # Use large model
+)
+
+# For highest accuracy (transformer model)
+inconnu_trf = Inconnu(
+    language="en",
+    model_name=SpacyModels.EN_CORE_WEB_TRF
 )
 ```
 
 **Model Selection Guide:**
-- `en_core_web_sm`: Fast processing, good for high-volume processing
-- `en_core_web_lg`: Better accuracy, moderate processing time
-- `en_core_web_trf`: Highest accuracy, slower processing (recommended for sensitive data)
+- `en_core_web_sm`: Fast processing, good for high-volume
+- `en_core_web_lg`: Better accuracy, moderate speed
+- `en_core_web_trf`: Highest accuracy, GPU-optimized (recommended for sensitive data)
 
-For more models, visit the [spaCy Models Directory](https://spacy.io/models).
+For a complete list of supported models, run `inconnu-download --list`
 
 ## Development Setup
 
