@@ -4,8 +4,8 @@ Model installer for Inconnu - downloads spaCy language models.
 """
 
 import argparse
-import subprocess
 import sys
+from subprocess import run
 from typing import Optional
 
 # Mapping of language codes to spaCy model names
@@ -33,10 +33,10 @@ def download_model(model_name: str, upgrade: bool = False) -> bool:
         cmd = [sys.executable, "-m", "spacy", "download", model_name]
         if upgrade:
             cmd.append("--upgrade")
-        
+
         print(f"Downloading spaCy model: {model_name}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
+        result = run(cmd, capture_output=True, text=True)  # noqa: S603
+
         if result.returncode == 0:
             print(f"✓ Successfully downloaded {model_name}")
             return True
@@ -53,6 +53,7 @@ def check_model_installed(model_name: str) -> bool:
     """Check if a spaCy model is already installed."""
     try:
         import spacy
+
         spacy.load(model_name)
         return True
     except (ImportError, OSError):
@@ -65,7 +66,9 @@ def list_available_models():
     for lang, models in LANGUAGE_MODELS.items():
         print(f"{lang.upper()}:")
         for model in models:
-            size = "small" if "_sm" in model else "medium" if "_md" in model else "large"
+            size = (
+                "small" if "_sm" in model else "medium" if "_md" in model else "large"
+            )
             if "_trf" in model:
                 size = "transformer"
             default = " (default)" if model == DEFAULT_MODELS.get(lang) else ""
@@ -74,42 +77,49 @@ def list_available_models():
         print()
 
 
-def download_language_models(language: str, model_size: Optional[str] = None, upgrade: bool = False) -> bool:
+def download_language_models(
+    language: str, model_size: Optional[str] = None, upgrade: bool = False
+) -> bool:
     """Download models for a specific language."""
     if language not in LANGUAGE_MODELS:
         print(f"✗ Language '{language}' not supported.")
         print(f"Supported languages: {', '.join(LANGUAGE_MODELS.keys())}")
         return False
-    
+
     available_models = LANGUAGE_MODELS[language]
-    
+
     if model_size:
         # Find model matching the requested size
-        size_map = {"small": "_sm", "medium": "_md", "large": "_lg", "transformer": "_trf"}
+        size_map = {
+            "small": "_sm",
+            "medium": "_md",
+            "large": "_lg",
+            "transformer": "_trf",
+        }
         suffix = size_map.get(model_size.lower())
         if not suffix:
             print(f"✗ Invalid model size: {model_size}")
             print("Valid sizes: small, medium, large, transformer")
             return False
-        
+
         model_to_download = None
         for model in available_models:
             if suffix in model:
                 model_to_download = model
                 break
-        
+
         if not model_to_download:
             print(f"✗ No {model_size} model available for {language}")
             return False
     else:
         # Use default model
         model_to_download = DEFAULT_MODELS[language]
-    
+
     # Check if already installed
     if check_model_installed(model_to_download) and not upgrade:
         print(f"✓ Model {model_to_download} is already installed")
         return True
-    
+
     return download_model(model_to_download, upgrade)
 
 
@@ -135,41 +145,35 @@ Examples:
   inconnu-download all                   # Download all default models
   inconnu-download --list               # List all available models
   inconnu-download en --upgrade         # Upgrade English model
-"""
+""",
     )
-    
+
     parser.add_argument(
         "languages",
         nargs="*",
-        help="Language code(s) to download models for (en, de, it, es, fr) or 'all'"
+        help="Language code(s) to download models for (en, de, it, es, fr) or 'all'",
     )
     parser.add_argument(
         "--size",
         choices=["small", "medium", "large", "transformer"],
-        help="Model size to download (default: small)"
+        help="Model size to download (default: small)",
     )
     parser.add_argument(
-        "--upgrade",
-        action="store_true",
-        help="Upgrade existing models"
+        "--upgrade", action="store_true", help="Upgrade existing models"
     )
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List all available models"
-    )
-    
+    parser.add_argument("--list", action="store_true", help="List all available models")
+
     args = parser.parse_args()
-    
+
     # Handle list command
     if args.list:
         list_available_models()
         return
-    
+
     # Require at least one language if not listing
     if not args.languages:
         parser.error("Please specify language(s) to download or use --list")
-    
+
     # Handle 'all' keyword
     if "all" in args.languages:
         if download_all_default_models(args.upgrade):
@@ -178,13 +182,13 @@ Examples:
             print("\n✗ Some models failed to download")
             sys.exit(1)
         return
-    
+
     # Download specific languages
     success = True
     for lang in args.languages:
         if not download_language_models(lang, args.size, args.upgrade):
             success = False
-    
+
     if success:
         print("\n✓ All requested models downloaded successfully!")
     else:
