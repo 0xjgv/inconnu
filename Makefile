@@ -4,20 +4,20 @@ install:
 activate:
 	uv venv
 
-install-pip:
-	uv pip install pip --upgrade
+model-en:
+	uv run inconnu-download en
 
-model-de: install-pip
-	uv run python -m spacy download de_core_news_sm
+model-de:
+	uv run inconnu-download de
 
-model-it: install-pip
-	uv run python -m spacy download it_core_news_sm
+model-it:
+	uv run inconnu-download it
 
-model-es: install-pip
-	uv run python -m spacy download es_core_news_sm
+model-es:
+	uv run inconnu-download es
 
-model-fr: install-pip
-	uv run python -m spacy download fr_core_news_sm
+model-fr:
+	uv run inconnu-download fr
 
 update-deps:
 	uv update
@@ -35,5 +35,7 @@ clean: fix format lint
 	rm -fr .pytest_cache */__pycache__ */*/__pycache__
 	uv run ruff clean
 
-test:
+install-models: model-en model-de model-it # Models required for testing
+
+test: install-models
 	uv run pytest -vv

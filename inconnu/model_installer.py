@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from subprocess import run, CalledProcessError
+from subprocess import CalledProcessError, run
 from typing import Optional
 
 # Mapping of language codes to spaCy model names
@@ -43,17 +43,18 @@ def ensure_pip_available() -> bool:
     """Ensure pip is available, install it if running in UV environment."""
     try:
         # Try importing pip to check if it's available
-        import pip  # noqa: F401
+        import pip  # type: ignore # noqa: F401
+
         return True
     except ImportError:
         if is_uv_environment():
             print("📦 UV environment detected. Installing pip...")
             try:
-                result = run(
-                    [sys.executable, "-m", "uv", "pip", "install", "pip"],
+                result = run(  # noqa: S603
+                    ["uv", "pip", "install", "pip", "--upgrade"],  # noqa: S607
                     capture_output=True,
-                    text=True
-                )  # noqa: S603
+                    text=True,
+                )
                 if result.returncode == 0:
                     print("✓ pip installed successfully")
                     return True
@@ -73,8 +74,12 @@ def download_model(model_name: str, upgrade: bool = False) -> bool:
         print("\n⚠️  pip is not available and could not be installed.")
         if is_uv_environment():
             print("\n💡 For UV environments, you can install models directly:")
-            print(f"   uv add 'inconnu[{model_name.split('_')[0]}]'  # for default model")
-            print(f"   uv add 'inconnu[{model_name.split('_')[0]}-lg]'  # for large model")
+            print(
+                f"   uv add 'inconnu[{model_name.split('_')[0]}]'  # for default model"
+            )
+            print(
+                f"   uv add 'inconnu[{model_name.split('_')[0]}-lg]'  # for large model"
+            )
             print("\n   Or install all languages: uv add 'inconnu[all]'")
         return False
 
@@ -175,7 +180,7 @@ def download_language_models(
 def download_all_default_models(upgrade: bool = False) -> bool:
     """Download all default models."""
     success = True
-    for lang, model in DEFAULT_MODELS.items():
+    for model in DEFAULT_MODELS.values():
         if not download_model(model, upgrade):
             success = False
     return success
@@ -185,7 +190,6 @@ def print_uv_instructions():
     """Print instructions for UV users."""
     print("\n📘 UV Installation Instructions:")
     print("\nFor UV environments, models can be installed as dependencies:")
-    print("\n  Default (small) models:")
     print("    uv add 'inconnu[en]'         # English")
     print("    uv add 'inconnu[de]'         # German")
     print("    uv add 'inconnu[en,de,fr]'   # Multiple languages")
@@ -248,7 +252,9 @@ Examples:
             print("⚠️  UV environment detected!")
             print_uv_instructions()
             print("\nOr use 'inconnu-download --list' to see available models")
-            print("Or use 'inconnu-download LANG' to download via this tool (requires pip)")
+            print(
+                "Or use 'inconnu-download LANG' to download via this tool (requires pip)"
+            )
             return
         parser.error("Please specify language(s) to download or use --list")
 

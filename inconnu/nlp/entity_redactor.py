@@ -19,6 +19,8 @@ class SpacyModels(StrEnum):
     EN_CORE_WEB_TRF = "en_core_web_trf"
     DE_CORE_NEWS_SM = "de_core_news_sm"
     IT_CORE_NEWS_SM = "it_core_news_sm"
+    ES_CORE_NEWS_SM = "es_core_news_sm"
+    FR_CORE_NEWS_SM = "fr_core_news_sm"
     EN_CORE_WEB_SM = "en_core_web_sm"
 
 
@@ -155,6 +157,10 @@ class EntityRedactor:
                 model_name = SpacyModels.EN_CORE_WEB_SM
             case "it":
                 model_name = SpacyModels.IT_CORE_NEWS_SM
+            case "es":
+                model_name = SpacyModels.ES_CORE_NEWS_SM
+            case "fr":
+                model_name = SpacyModels.FR_CORE_NEWS_SM
             case _:
                 # Default to English small model for unsupported languages
                 model_name = SpacyModels.EN_CORE_WEB_SM
