@@ -28,11 +28,13 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install dependencies
+    - name: Install dependencies & download models
       run: |
         uv sync
         uv pip install pip --upgrade
         uv run python -m spacy download en_core_web_sm
+        uv run python -m spacy download de_core_news_sm
+        uv run python -m spacy download it_core_news_sm
 
     - name: Run tests
       run: |
