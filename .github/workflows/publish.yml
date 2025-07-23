@@ -30,7 +30,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --group dev
+        uv sync
         uv pip install pip --upgrade
         uv run python -m spacy download en_core_web_sm
 
