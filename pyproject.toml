@@ -1,6 +1,6 @@
 [project]
 name = "inconnu"
-version = "0.1.0"
+version = "0.1.1"
 description = "GDPR-compliant data privacy tool for entity redaction and de-anonymization"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -15,7 +15,7 @@ from .nlp.entity_redactor import EntityRedactor
 from .nlp.interfaces import NERComponent, ProcessedData
 
 # Package version
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Export key classes and exceptions for easy importing
 __all__ = [
