@@ -4,8 +4,10 @@ Model installer for Inconnu - downloads spaCy language models.
 """
 
 import argparse
+import os
 import sys
-from subprocess import run
+from pathlib import Path
+from subprocess import run, CalledProcessError
 from typing import Optional
 
 # Mapping of language codes to spaCy model names
@@ -27,8 +29,55 @@ DEFAULT_MODELS = {
 }
 
 
+def is_uv_environment() -> bool:
+    """Check if running in a UV environment."""
+    # Check for UV environment markers
+    return (
+        os.environ.get("UV_PROJECT_ROOT") is not None
+        or Path(sys.prefix).name == ".venv"
+        and Path(sys.prefix).parent.joinpath("uv.lock").exists()
+    )
+
+
+def ensure_pip_available() -> bool:
+    """Ensure pip is available, install it if running in UV environment."""
+    try:
+        # Try importing pip to check if it's available
+        import pip  # noqa: F401
+        return True
+    except ImportError:
+        if is_uv_environment():
+            print("📦 UV environment detected. Installing pip...")
+            try:
+                result = run(
+                    [sys.executable, "-m", "uv", "pip", "install", "pip"],
+                    capture_output=True,
+                    text=True
+                )  # noqa: S603
+                if result.returncode == 0:
+                    print("✓ pip installed successfully")
+                    return True
+                else:
+                    print(f"✗ Failed to install pip: {result.stderr}")
+                    return False
+            except (CalledProcessError, FileNotFoundError) as e:
+                print(f"✗ Error installing pip: {e}")
+                return False
+        return False
+
+
 def download_model(model_name: str, upgrade: bool = False) -> bool:
     """Download a spaCy model using subprocess."""
+    # First, ensure pip is available
+    if not ensure_pip_available():
+        print("\n⚠️  pip is not available and could not be installed.")
+        if is_uv_environment():
+            print("\n💡 For UV environments, you can install models directly:")
+            print(f"   uv add 'inconnu[{model_name.split('_')[0]}]'  # for default model")
+            print(f"   uv add 'inconnu[{model_name.split('_')[0]}-lg]'  # for large model")
+            print("\n   Or install all languages: uv add 'inconnu[all]'")
+        return False
+
     try:
         cmd = [sys.executable, "-m", "spacy", "download", model_name]
         if upgrade:
@@ -132,6 +181,21 @@ def download_all_default_models(upgrade: bool = False) -> bool:
     return success
 
 
+def print_uv_instructions():
+    """Print instructions for UV users."""
+    print("\n📘 UV Installation Instructions:")
+    print("\nFor UV environments, models can be installed as dependencies:")
+    print("\n  Default (small) models:")
+    print("    uv add 'inconnu[en]'         # English")
+    print("    uv add 'inconnu[de]'         # German")
+    print("    uv add 'inconnu[en,de,fr]'   # Multiple languages")
+    print("    uv add 'inconnu[all]'        # All languages")
+    print("\n  Larger models:")
+    print("    uv add 'inconnu[en-lg]'      # English large")
+    print("    uv add 'inconnu[en-trf]'     # English transformer")
+    print("\n  Available sizes: sm (default), md, lg, trf (English only)")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -162,8 +226,16 @@ Examples:
         "--upgrade", action="store_true", help="Upgrade existing models"
     )
     parser.add_argument("--list", action="store_true", help="List all available models")
+    parser.add_argument(
+        "--uv-help", action="store_true", help="Show UV installation instructions"
+    )
 
     args = parser.parse_args()
+
+    # Handle UV help
+    if args.uv_help:
+        print_uv_instructions()
+        return
 
     # Handle list command
     if args.list:
@@ -172,6 +244,12 @@ Examples:
 
     # Require at least one language if not listing
     if not args.languages:
+        if is_uv_environment():
+            print("⚠️  UV environment detected!")
+            print_uv_instructions()
+            print("\nOr use 'inconnu-download --list' to see available models")
+            print("Or use 'inconnu-download LANG' to download via this tool (requires pip)")
+            return
         parser.error("Please specify language(s) to download or use --list")
 
     # Handle 'all' keyword

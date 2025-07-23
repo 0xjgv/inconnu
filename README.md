@@ -25,6 +25,8 @@ Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and 
 
 ### Install from PyPI
 
+#### Using pip
+
 ```bash
 # Basic installation (without language models)
 pip install inconnu
@@ -45,9 +47,43 @@ pip install inconnu[en,de,fr]
 pip install inconnu[all]
 ```
 
+#### Using UV (Recommended)
+
+UV is a fast Python package manager that works seamlessly with Inconnu:
+
+```bash
+# Basic installation
+uv add inconnu
+
+# Install with language support (models included as dependencies)
+uv add "inconnu[en]"         # English (small model)
+uv add "inconnu[de]"         # German (small model)
+uv add "inconnu[en,de,fr]"   # Multiple languages
+uv add "inconnu[all]"        # All languages (small models)
+
+# Install larger models for better accuracy
+uv add "inconnu[en-lg]"      # English large model
+uv add "inconnu[de-md]"      # German medium model
+uv add "inconnu[en-trf]"     # English transformer model (highest accuracy)
+```
+
 ### Download Language Models
 
-After installation, download the required spaCy models:
+#### For UV users
+
+With UV, models are installed as dependencies (see installation above). No additional download step required!
+
+```bash
+# Check installed models
+inconnu-download --list
+
+# Get UV-specific installation help
+inconnu-download --uv-help
+```
+
+#### For pip users
+
+After pip installation, download the required spaCy models:
 
 ```bash
 # Using the built-in CLI tool
@@ -72,8 +108,8 @@ python -m spacy download de_core_news_sm
 
 2. **Install with UV (recommended for development)**:
    ```bash
-   make install          # Install dependencies
-   make model-de        # Download German model
+   uv sync              # Install dependencies
+   uv add "inconnu[en,de]"  # Add language support
    make test            # Run tests
    ```
 
@@ -85,44 +121,41 @@ python -m spacy download de_core_news_sm
 
 ### Installing Additional Models
 
-Inconnu supports multiple spaCy models for enhanced accuracy. The default `en_core_web_sm` model is lightweight and fast, but you can install more accurate models:
+Inconnu supports multiple spaCy models for enhanced accuracy:
 
-#### English Models
+#### Available Model Sizes
+
+- **Small (sm)**: ~15-50MB, fast processing, good for high-volume
+- **Medium (md)**: ~50-200MB, better accuracy, moderate speed
+- **Large (lg)**: ~200-600MB, high accuracy, slower processing
+- **Transformer (trf)**: ~400MB+, highest accuracy, GPU-optimized (English only)
+
+#### UV Installation (Recommended)
+
 ```bash
-# Small model (default) - 15MB, fast processing
-uv run python -m spacy download en_core_web_sm
+# Install specific model sizes as dependencies
+uv add "inconnu[en-lg]"      # English large
+uv add "inconnu[de-md]"      # German medium
+uv add "inconnu[fr-lg]"      # French large
+uv add "inconnu[en-trf]"     # English transformer
 
-# Large model - 560MB, higher accuracy
-uv run python -m spacy download en_core_web_lg
-
-# Transformer model - 438MB, highest accuracy
-uv run python -m spacy download en_core_web_trf
+# Install multiple models
+uv add "inconnu[en-lg,de-lg,fr-lg]"
 ```
 
-#### Additional Language Models
+#### Traditional Installation
+
 ```bash
-# German model
-make model-de
-uv run python -m spacy download de_core_news_sm
+# Using make commands (for development)
+make model-de        # German small
+make model-it        # Italian small
+make model-es        # Spanish small
+make model-fr        # French small
 
-# Italian model
-make model-it
-uv run python -m spacy download it_core_news_sm
-
-# Spanish model
-make model-es
-uv run python -m spacy download es_core_news_sm
-
-# French model
-make model-fr
-uv run python -m spacy download fr_core_news_sm
-
-# For enhanced accuracy (manual installation)
-# Medium German model - better accuracy
-uv run python -m spacy download de_core_news_md
-
-# Large German model - highest accuracy
-uv run python -m spacy download de_core_news_lg
+# Using spaCy directly
+python -m spacy download en_core_web_lg   # English large
+python -m spacy download de_core_news_md  # German medium
+python -m spacy download es_core_news_lg  # Spanish large
 ```
 
 #### Using Different Models
