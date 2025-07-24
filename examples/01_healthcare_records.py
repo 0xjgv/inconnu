@@ -21,13 +21,18 @@ from inconnu import Inconnu, NERComponent
 custom_components_generic = [
     NERComponent(
         pattern=re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+        label="SOCIAL_SECURITY_NUMBER",
         processing_func=None,
-        label="SSN",
     ),
     NERComponent(
         pattern=re.compile(r"\d{2}/\d{2}/\d{4}"),
         processing_func=None,
         label="DATE_OF_BIRTH",
+    ),
+    NERComponent(
+        pattern=re.compile(r"\bMRN:\s*\d{6,10}\b"),
+        label="MEDICAL_RECORD_NUMBER",
+        processing_func=None,
     ),
 ]
 
@@ -128,22 +133,17 @@ print("-" * 30)
 # Add custom patterns for clinical trial identifiers
 custom_components_clinical = [
     NERComponent(
-        label="TRIAL_ID", pattern=re.compile(r"NCT\d{8}"), processing_func=None
+        label="TRIAL_ID", pattern=re.compile(r"\bNCT\d{8}\b"), processing_func=None
     ),
     NERComponent(
-        pattern=re.compile(r"SUB-\d{4}-[A-Z]{2}"),
+        pattern=re.compile(r"\bSUB-\d{4}-[A-Z]{2}\b"),
         processing_func=None,
         label="SUBJECT_ID",
     ),
     NERComponent(
-        pattern=re.compile(r"SITE-[A-Z]{2}-\d{3}"),
+        pattern=re.compile(r"\bSITE-[A-Z]{2}-\d{3}\b"),
         processing_func=None,
         label="SITE_ID",
-    ),
-    NERComponent(
-        pattern=re.compile(r"\d{2}/\d{2}/\d{4}"),
-        processing_func=None,
-        label="DATE_OF_BIRTH",
     ),
 ]
 

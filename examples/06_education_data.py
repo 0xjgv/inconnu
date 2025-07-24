@@ -13,14 +13,37 @@ Use Cases:
 - College applications
 - Research participant data
 - Online learning platforms
+
+This example also demonstrates:
+- Enhanced error handling and conflict resolution
+- Use of centralized pattern library
+- Debug logging for entity conflicts
+- Performance monitoring
 """
 
-import re
+import logging
 
-from inconnu import Inconnu, NERComponent
+from inconnu import Config, Inconnu, NERComponent
+from inconnu.nlp.patterns import (
+    COURSE_CODE_PATTERN_RE,
+    GPA_PATTERN_RE,
+    STUDENT_ID_PATTERN_RE,
+)
 
-# Initialize Inconnu
-inconnu = Inconnu()
+# Configure logging to see debug information
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# Initialize Inconnu with education-specific configuration
+config = Config(
+    log_conflicts=True,  # Enable conflict logging
+    debug_mode=True,  # Enable debug mode
+    log_performance=True,  # Enable performance logging
+)
+
+# Enable education domain patterns
+config.enable_domain_patterns("education")
+
+inconnu = Inconnu(config=config)
 
 print("=" * 60)
 print("Education Data Processing with Inconnu")
@@ -234,26 +257,35 @@ print(diversity_safe[:700] + "...")
 print("\n\n5. ONLINE LEARNING PLATFORM")
 print("-" * 30)
 
-# Add education-specific patterns
+# Use centralized patterns from the pattern library
+# These are already included when we enabled the education domain
+# But we can add them explicitly as custom components to show priority
 edu_components = [
     NERComponent(
         label="STUDENT_ID",
-        pattern=re.compile(r"\b[A-Z]{2,3}-\d{4}-\d{4}\b"),
+        pattern=STUDENT_ID_PATTERN_RE,  # From centralized patterns
         processing_func=None,
     ),
     NERComponent(
         label="COURSE_CODE",
-        pattern=re.compile(r"\b[A-Z]{2,4}\s?\d{3}[A-Z]?\b"),
+        pattern=COURSE_CODE_PATTERN_RE,  # From centralized patterns
         processing_func=None,
     ),
     NERComponent(
         label="GPA",
-        pattern=re.compile(r"\b[0-4]\.\d{1,2}(?:/4\.0{1,2})?\b"),
+        pattern=GPA_PATTERN_RE,  # From centralized patterns
         processing_func=None,
     ),
 ]
 
-inconnu_edu = Inconnu(custom_components=edu_components)
+# Create new instance with custom components and error handling demo
+try:
+    inconnu_edu = Inconnu(custom_components=edu_components)
+    print("Successfully initialized Inconnu with education patterns")
+except Exception as e:
+    print(f"Error initializing Inconnu: {e}")
+    # Fallback to basic instance
+    inconnu_edu = inconnu
 
 platform_data = """
 STUDENT ANALYTICS REPORT
@@ -287,14 +319,29 @@ Performance Metrics:
 - Predicted Final Grade: B (3.0/4.0)
 """
 
-platform_redacted = inconnu_edu.redact(platform_data)
-print("Anonymized Platform Data:")
-print(platform_redacted)
+# Demonstrate error handling and conflict resolution
+try:
+    platform_redacted = inconnu_edu.redact(platform_data)
+    print("Anonymized Platform Data:")
+    print(platform_redacted)
 
-# Example 6: Research Study Participant Data
-print("\n\n6. EDUCATIONAL RESEARCH DATA")
+    # Show performance stats if available
+    stats = inconnu_edu.get_performance_stats()
+    print(f"\nPerformance stats: {stats}")
+except Exception as e:
+    print(f"Error processing platform data: {e}")
+    print("Attempting graceful recovery...")
+    # Try with basic anonymization
+    platform_redacted = inconnu.redact(platform_data)
+    print("Recovered with basic anonymization:")
+    print(platform_redacted[:400] + "...")
+
+# Example 6: Research Study Participant Data with Entity Conflict Demo
+print("\n\n6. EDUCATIONAL RESEARCH DATA (WITH CONFLICT RESOLUTION DEMO)")
 print("-" * 30)
 
+# This example deliberately creates potential entity conflicts to show
+# how the enhanced conflict resolution handles them
 research_data = """
 EDUCATIONAL RESEARCH STUDY
 Title: Impact of Socioeconomic Factors on STEM Performance
@@ -337,10 +384,27 @@ Dr. Carlos Mendez (an engineer at SpaceX), has been mentoring her." - J. Wong
 Follow-up: Schedule 6-month assessment. Contact via parent's phone.
 """
 
-# Anonymize for publication
-publication_ready = inconnu.redact(research_data)
-print("Anonymized Research Data (for publication):")
-print(publication_ready[:600] + "...")
+# Anonymize for publication with error handling
+try:
+    # Enable debug logging to see conflict resolution
+    if config.debug_mode:
+        print("\n[DEBUG] Processing research data with potential entity conflicts...")
+
+    publication_ready = inconnu.redact(research_data)
+    print("\nAnonymized Research Data (for publication):")
+    print(publication_ready[:600] + "...")
+
+    # Demonstrate validation of results
+    if "[PERSON]" in publication_ready and "[STUDENT_ID]" in publication_ready:
+        print("\n✓ Successfully anonymized person names and student IDs")
+    if "[PHONE_NUMBER]" in publication_ready:
+        print("✓ Successfully anonymized phone numbers")
+    if "[EMAIL]" in publication_ready:
+        print("✓ Successfully anonymized email addresses")
+
+except Exception as e:
+    print(f"\nError during anonymization: {e}")
+    print("This demonstrates the enhanced error handling in action.")
 
 # Best Practices Summary
 print("\n\n" + "=" * 60)
@@ -373,4 +437,52 @@ print("""
    - Secure grade and assessment data
 """)
 
-print("\nExample completed successfully!")
+# Additional Examples Demonstrating New Features
+print("\n\n7. DEMONSTRATING NEW FEATURES")
+print("-" * 30)
+
+# Demonstrate streaming for large documents
+print("\n7a. Streaming Large Text")
+large_text = enrollment_record * 10  # Simulate large document
+try:
+    streamed_result = inconnu.redact_stream(large_text, chunk_size=1000)
+    print(f"Streamed processing of {len(large_text)} chars successful")
+    print(f"Result preview: {streamed_result[:200]}...")
+except Exception as e:
+    print(f"Streaming error: {e}")
+
+# Demonstrate batch processing with progress
+print("\n7b. Batch Processing Multiple Documents")
+documents = [
+    "Student John Doe (ID: ABC-1234-5678) scored 3.85 GPA",
+    "Dr. Smith teaches CS 101 in Room 205",
+    "Contact parent at (555) 123-4567 or parent@email.com",
+    "Invalid document with [[ bad formatting ]]",
+]
+
+try:
+    batch_results = inconnu.redact_batch(documents, chunk_size=2)
+    print("Batch processing results:")
+    for i, result in enumerate(batch_results):
+        print(f"  Doc {i + 1}: {result}")
+except Exception as e:
+    print(f"Batch processing error: {e}")
+
+# Demonstrate pattern inspection
+print("\n7c. Available Education Patterns")
+supported = inconnu.get_supported_patterns()
+education_patterns = [
+    p for p in supported if p in config.domain_pattern_sets.get("education", set())
+]
+print(f"Education-specific patterns: {', '.join(education_patterns)}")
+
+print("\n" + "=" * 60)
+print("Example completed successfully!")
+print("This example demonstrated:")
+print("- Enhanced error handling and recovery")
+print("- Entity conflict resolution with debug logging")
+print("- Use of centralized pattern library")
+print("- Streaming and batch processing")
+print("- Performance monitoring")
+print("- Pattern inspection and configuration")
+print("=" * 60)

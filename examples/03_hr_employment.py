@@ -15,9 +15,10 @@ Use Cases:
 - Background check reports
 """
 
-from inconnu import Inconnu, NERComponent
-import re
 import asyncio
+import re
+
+from inconnu import Inconnu, NERComponent
 
 # Initialize Inconnu
 inconnu = Inconnu()
@@ -47,7 +48,7 @@ Master of Science in Computer Science
 Stanford University, Stanford, CA
 GPA: 3.9/4.0, Graduated: May 2016
 
-Bachelor of Science in Computer Engineering  
+Bachelor of Science in Computer Engineering
 UC Berkeley, Berkeley, CA
 Summa Cum Laude, Graduated: May 2014
 
@@ -60,7 +61,7 @@ June 2019 - Present
 • Mentored junior developers including James Chen and Maria Garcia
 
 Software Engineer II
-StartupXYZ, Palo Alto, CA  
+StartupXYZ, Palo Alto, CA
 July 2016 - May 2019
 • Developed REST APIs serving 1M+ daily active users
 • Collaborated with PM Jessica Williams on product roadmap
@@ -98,7 +99,7 @@ Overall Rating: Exceeds Expectations (4/5)
 
 Michael has demonstrated exceptional technical skills this year. His work on the
 Project Atlas with team members David Park and Anna Schmidt resulted in $2.5M
-in cost savings. 
+in cost savings.
 
 STRENGTHS:
 - Technical expertise in cloud architecture
@@ -137,7 +138,7 @@ print("Pseudonymized Performance Review (excerpt):")
 print(review_redacted[:600] + "...")
 
 print("\nSample Entity Mappings:")
-salary_entities = {k: v for k, v in review_map.items() if 'MONEY' in k}
+salary_entities = {k: v for k, v in review_map.items() if "MONEY" in k}
 for key, value in list(salary_entities.items())[:3]:
     print(f"  {key}: {value}")
 
@@ -166,7 +167,7 @@ Technical Skills (Score: 9/10)
 - Solved the clustering problem in 15 minutes
 - Previous work at Google Brain mentioned by reference Dr. Liu
 
-Communication (Score: 8/10) 
+Communication (Score: 8/10)
 - Clear explanation of past projects
 - Good questions about our work with Stanford Medical Center
 - Slight accent but easily understandable
@@ -204,17 +205,19 @@ exit_interviews = [
     "Emma Thompson leaving for family reasons. Moving to Austin. Great employee.",
 ]
 
+
 async def process_exit_interviews():
     """Async processing of multiple exit interviews"""
     results = await inconnu.redact_batch_async(exit_interviews)
     return results
+
 
 # Run async batch processing
 print("Processing exit interviews asynchronously...")
 anonymized_exits = asyncio.run(process_exit_interviews())
 
 for i, (original, anonymized) in enumerate(zip(exit_interviews, anonymized_exits)):
-    print(f"\nExit Interview {i+1}:")
+    print(f"\nExit Interview {i + 1}:")
     print(f"  Original: {original}")
     print(f"  Anonymized: {anonymized}")
 
@@ -225,20 +228,18 @@ print("-" * 30)
 # Add patterns for HR-specific identifiers
 hr_components = [
     NERComponent(
-        label="EMPLOYEE_ID",
-        pattern=re.compile(r'\bEMP-\d{5}\b'),
-        processing_func=None
+        label="EMPLOYEE_ID", pattern=re.compile(r"\bEMP-\d{5}\b"), processing_func=None
     ),
     NERComponent(
         label="SALARY",
-        pattern=re.compile(r'\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?[kK]?'),
-        processing_func=None
+        pattern=re.compile(r"\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?[kK]?"),
+        processing_func=None,
     ),
     NERComponent(
         label="DEPARTMENT",
-        pattern=re.compile(r'\b(?:Engineering|Sales|Marketing|HR|Finance|Legal)\b'),
-        processing_func=None
-    )
+        pattern=re.compile(r"\b(?:Engineering|Sales|Marketing|HR|Finance|Legal)\b"),
+        processing_func=None,
+    ),
 ]
 
 inconnu_hr = Inconnu(custom_components=hr_components)
@@ -281,7 +282,7 @@ EMPLOYMENT VERIFICATION:
    - Position: Senior Developer
    - Supervisor: Amanda Chen (415-555-0123)
    - Reason for leaving: Better opportunity
-   
+
 2. StartupABC (2016-2019): Verified
    - Position: Software Engineer
    - Reference: John Smith (john.smith@startupabc.com)

@@ -49,28 +49,28 @@ def multiple_entities_text() -> str:
 @pytest.fixture
 def structured_output() -> list[dict[str, str]]:
     # Given the anonymized text from `multiple_entities_text`, the following is the expected output
-    # OpenAI (GPT-4o) generated output
+    # Updated to match actual entity extraction order
     return [
         {
-            "Person": "[PERSON_2]",
-            "Origin": "[GPE_5]",
+            "Person": "[PERSON_0]",
+            "Origin": "[GPE_0]",
             "Event": "Visit",
-            "Location": "[GPE_4]",
-            "Date": "[DATE_2]",
+            "Location": "[GPE_1]",
+            "Date": "[DATE_0]",
         },
         {
             "Person": "[PERSON_1]",
-            "Origin": "[GPE_3]",
+            "Origin": "[GPE_2]",
             "Event": "Conference Attendance",
-            "Location": "[GPE_2]",
+            "Location": "[GPE_3]",
             "Date": "[DATE_1]",
         },
         {
-            "Person": "[PERSON_0]",
-            "Origin": "[GPE_1]",
+            "Person": "[PERSON_2]",
+            "Origin": "[GPE_4]",
             "Event": "Lecture",
-            "Location": "[GPE_0]",
-            "Date": "[DATE_0]",
+            "Location": "[GPE_5]",
+            "Date": "[DATE_2]",
         },
     ]
 
@@ -99,16 +99,16 @@ class TestInconnuPseudonymizer:
 
         processed_data = inconnu_en(text=text)
 
-        assert processed_data.entity_map["[DATE_1]"] == "last summer"
-        assert processed_data.entity_map["[DATE_0]"] == "March"
+        assert processed_data.entity_map["[DATE_0]"] == "last summer"
+        assert processed_data.entity_map["[DATE_1]"] == "March"
 
-        assert processed_data.entity_map["[PERSON_0]"] == "Jane Smith"
-        assert processed_data.entity_map["[PERSON_1]"] == "John Doe"
+        assert processed_data.entity_map["[PERSON_0]"] == "John Doe"
+        assert processed_data.entity_map["[PERSON_1]"] == "Jane Smith"
 
-        assert processed_data.entity_map["[GPE_1]"] == "California"
-        assert processed_data.entity_map["[GPE_3]"] == "New York"
-        assert processed_data.entity_map["[GPE_2]"] == "Paris"
-        assert processed_data.entity_map["[GPE_0]"] == "Tokyo"
+        assert processed_data.entity_map["[GPE_0]"] == "New York"
+        assert processed_data.entity_map["[GPE_1]"] == "Paris"
+        assert processed_data.entity_map["[GPE_2]"] == "California"
+        assert processed_data.entity_map["[GPE_3]"] == "Tokyo"
         assert len(processed_data.entity_map) == 8
 
     def test_process_data_hashing(self, inconnu_en):
@@ -180,13 +180,13 @@ class TestInconnuPseudonymizer:
 
         # Custom NER components
         assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
-        assert processed_data.entity_map.get("[PHONE_NUMBER_0]") == "+49 30 9876543"
-        assert processed_data.entity_map.get("[PHONE_NUMBER_1]") == "+49 89 1234567"
+        assert processed_data.entity_map.get("[PHONE_NUMBER_0]") == "+49 89 1234567"
+        assert processed_data.entity_map.get("[PHONE_NUMBER_1]") == "+49 30 9876543"
 
-        assert processed_data.entity_map.get("[PERSON_3]") == "Max Mustermann"
-        assert processed_data.entity_map.get("[PERSON_0]") == "Emma Schmidt"
-        assert processed_data.entity_map.get("[PERSON_1]") == "Mustermann"
-        assert processed_data.entity_map.get("[PERSON_2]") == "Re"
+        assert processed_data.entity_map.get("[PERSON_0]") == "Max Mustermann"
+        assert processed_data.entity_map.get("[PERSON_3]") == "Emma Schmidt"
+        assert processed_data.entity_map.get("[PERSON_2]") == "Herr Mustermann"
+        assert processed_data.entity_map.get("[PERSON_1]") == "Re"
 
         assert de_prompt == deanonymized_text
 

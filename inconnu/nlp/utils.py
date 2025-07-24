@@ -1,3 +1,4 @@
+import logging
 from enum import StrEnum
 from functools import wraps
 from re import Pattern
@@ -45,7 +46,7 @@ class DefaultEntityLabel(StrEnum):
     TIME = "TIME"
     DATE = "DATE"
     NORP = "NORP"  # nationality, religious or political groups
-    MISC = "MISC"  # misc for DE language“
+    MISC = "MISC"  # misc for DE language"
     IBAN = "IBAN"  # custom ner component
     LAW = "LAW"
     LOC = "LOC"
@@ -53,19 +54,185 @@ class DefaultEntityLabel(StrEnum):
     GPE = "GPE"
     FAC = "FAC"
     PER = "PER"  # person for DE language
+    STUDENT_ID = "STUDENT_ID"  # custom ner component
+    EMPLOYEE_ID = "EMPLOYEE_ID"  # custom ner component
+    LEGAL_CITATION = "LEGAL_CITATION"  # custom ner component
+    SSN = "SSN"  # custom ner component
+    CREDIT_CARD = "CREDIT_CARD"  # custom ner component
+    BADGE_NUMBER = "BADGE_NUMBER"  # custom ner component
 
 
-def filter_overlapping_spans(spans):
+def validate_entity_spans(spans, doc_length=None):
+    """Validate entity spans for correctness before processing.
+
+    Returns (valid_spans, errors) tuple where errors is a list of validation issues.
+    """
+    valid_spans = []
+    errors = []
+
+    for i, span in enumerate(spans):
+        try:
+            # Check basic span validity
+            if not hasattr(span, "start") or not hasattr(span, "end"):
+                errors.append(f"Span {i} missing start/end attributes")
+                continue
+
+            # Check for malformed spans
+            if span.start < 0 or span.end < 0:
+                errors.append(
+                    f"Span {i} has negative indices: start={span.start}, end={span.end}"
+                )
+                continue
+
+            if span.start >= span.end:
+                errors.append(
+                    f"Span {i} has invalid range: start={span.start} >= end={span.end}"
+                )
+                continue
+
+            # Check bounds if doc_length is provided
+            if doc_length and (span.start >= doc_length or span.end > doc_length):
+                errors.append(
+                    f"Span {i} out of bounds: [{span.start}, {span.end}) in doc of length {doc_length}"
+                )
+                continue
+
+            valid_spans.append(span)
+
+        except Exception as e:
+            errors.append(f"Error validating span {i}: {str(e)}")
+
+    return valid_spans, errors
+
+
+def filter_overlapping_spans(spans, debug=False):
+    """Filter overlapping spans with priority-based resolution.
+
+    When spans overlap, this function:
+    1. Prefers longer spans over shorter ones
+    2. Uses entity type priority as a tiebreaker
+    3. Falls back to first-come for equal priority
+    4. Handles edge cases with identical positions using text content
+    """
+    if not spans:
+        return []
+
+    # Define entity priority (higher number = higher priority)
+    # Expanded with all entity types from examples
+    ENTITY_PRIORITY = {
+        "PERSON": 10,
+        "SSN": 9,
+        "EMAIL": 9,
+        "PHONE_NUMBER": 8,
+        "BADGE_NUMBER": 8,
+        "PASSPORT": 8,
+        "DRIVER_LICENSE": 8,
+        "CREDIT_CARD": 8,
+        "MRN": 8,  # Medical Record Number
+        "NPI": 8,  # National Provider Identifier
+        "DEA_NUMBER": 8,
+        "IBAN": 7,
+        "TICKET_NUMBER": 7,
+        "SWIFT_CODE": 7,
+        "ROUTING_NUMBER": 7,
+        "CASE_NUMBER": 7,
+        "BAR_NUMBER": 7,
+        "VIN": 7,
+        "DATE": 6,
+        "CRYPTO_WALLET": 6,
+        "STUDENT_ID": 6,
+        "EMPLOYEE_ID": 6,
+        "ICD_CODE": 6,
+        "PARTICIPANT_ID": 6,
+        "STUDY_ID": 6,
+        "ORDER_NUMBER": 6,
+        "GPE": 5,
+        "LOC": 5,
+        "CUSTOMER_ID": 5,
+        "ORG": 4,
+        "MONEY": 3,
+        "TIME": 2,
+        "WORK_OF_ART": 1,
+        "LANGUAGE": 1,
+        "PRODUCT": 1,
+        "EVENT": 1,
+        "NORP": 1,
+        "FAC": 1,
+        "LAW": 1,
+        "MISC": 0,
+    }
+
+    # Pre-compute priority lookups for performance
+    priority_cache = {}
+    for span in spans:
+        if span.label_ not in priority_cache:
+            priority_cache[span.label_] = ENTITY_PRIORITY.get(span.label_, 0)
+
+    # Sort spans by start index, then by length (descending), then by priority, then by text content
+    sorted_spans = sorted(
+        spans,
+        key=lambda span: (
+            span.start,
+            -(span.end - span.start),  # Negative for descending length
+            -priority_cache.get(span.label_, 0),  # Negative for descending priority
+            len(span.text)
+            if hasattr(span, "text")
+            else 0,  # Text length as additional tiebreaker
+            span.text
+            if hasattr(span, "text")
+            else "",  # Alphabetical as final tiebreaker
+        ),
+    )
+
     filtered_spans = []
-    current_end = -1
+    covered_positions = set()
 
-    # Sort spans by start index
-    for span in sorted(spans, key=lambda span: span.start):
-        if span.start >= current_end:
-            filtered_spans.append(span)
-            current_end = span.end
+    if debug:
+        conflict_log = []
 
-    return filtered_spans
+    for span in sorted_spans:
+        try:
+            # Check if this span overlaps with any already selected span
+            span_positions = set(range(span.start, span.end))
+            if not span_positions & covered_positions:
+                filtered_spans.append(span)
+                covered_positions.update(span_positions)
+            elif debug:
+                # Log conflict for debugging
+                overlapping = [
+                    s
+                    for s in filtered_spans
+                    if set(range(s.start, s.end)) & span_positions
+                ]
+                conflict_log.append(
+                    {
+                        "rejected": span,
+                        "label": span.label_,
+                        "priority": priority_cache.get(span.label_, 0),
+                        "overlaps_with": [
+                            (s.label_, s.text if hasattr(s, "text") else "")
+                            for s in overlapping
+                        ],
+                    }
+                )
+        except Exception as e:
+            logging.warning(
+                f"Error processing span [{span.start}, {span.end}): {str(e)}"
+            )
+            continue
+
+    if debug and conflict_log:
+        logging.debug(
+            f"Entity conflict resolution: {len(conflict_log)} conflicts resolved"
+        )
+        for conflict in conflict_log[:5]:  # Log first 5 conflicts
+            logging.debug(
+                f"  Rejected {conflict['label']} (priority {conflict['priority']}) "
+                f"overlapping with {conflict['overlaps_with']}"
+            )
+
+    # Sort filtered spans by start position for consistent output
+    return sorted(filtered_spans, key=lambda span: span.start)
 
 
 def create_ner_component(
@@ -91,7 +258,15 @@ def create_ner_component(
             if span:
                 spans.append(Span(doc, span.start, span.end, label=label))
 
-        doc.ents = filter_overlapping_spans(list(doc.ents) + spans)
+        # Validate spans before filtering
+        all_spans = list(doc.ents) + spans
+        valid_spans, errors = validate_entity_spans(all_spans, len(doc))
+
+        if errors:
+            for error in errors[:3]:  # Log first 3 errors
+                logging.warning(f"Entity validation error: {error}")
+
+        doc.ents = filter_overlapping_spans(valid_spans)
         return doc
 
     return custom_ner_component_name

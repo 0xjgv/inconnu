@@ -273,7 +273,7 @@ test_content = {
     "de": "Herr Johann Schmidt aus Berlin rief +49 30 1234567 wegen Rechnung #12345 an.",
     "it": "Il Sig. Giovanni Smith da Roma ha chiamato +39 06 123 4567 per fattura #12345.",
     "es": "El Sr. Juan Smith de Madrid llamó al +34 91 123 4567 sobre factura #12345.",
-    "fr": "M. Jean Smith de Paris a appelé le +33 1 42 12 34 56 concernant facture #12345."
+    "fr": "M. Jean Smith de Paris a appelé le +33 1 42 12 34 56 concernant facture #12345.",
 }
 
 print("Comparative anonymization across languages:")
@@ -282,7 +282,7 @@ for lang, text in test_content.items():
         inconnu_lang = Inconnu()
     else:
         inconnu_lang = Inconnu(language=lang)
-    
+
     redacted = inconnu_lang.redact(text)
     print(f"\n{lang.upper()}: {text}")
     print(f"     → {redacted}")

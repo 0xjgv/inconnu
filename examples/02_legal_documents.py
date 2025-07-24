@@ -206,21 +206,21 @@ print("-" * 30)
 # Add patterns for legal-specific identifiers
 legal_components = [
     NERComponent(
-        label="CASE_NUMBER",
         pattern=re.compile(r"\b\d{4}-[A-Z]{2}-\d{4,6}\b"),
         processing_func=None,
+        label="CASE_NUMBER",
     ),
     NERComponent(
-        label="BAR_NUMBER",
         pattern=re.compile(r"\b(?:Bar No\.|State Bar No:?)\s*[A-Z]{2}-?\d{5,6}\b"),
         processing_func=None,
+        label="BAR_NUMBER",
     ),
     NERComponent(
-        label="STATUTE",
         pattern=re.compile(
             r"\b\d+\s+U\.S\.C\.\s+§\s*\d+\b|\b\d+\s+C\.F\.R\.\s+§\s*\d+\.\d+\b"
         ),
         processing_func=None,
+        label="STATUTE",
     ),
 ]
 
