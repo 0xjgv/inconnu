@@ -94,11 +94,7 @@ from inconnu import Inconnu, NERComponent
 import re
 
 custom_components = [
-    NERComponent(
-        label="SSN",
-        pattern=re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-        processing_function=None
-    )
+        processing_func=None
 ]
 
 inconnu = Inconnu(custom_components=custom_components)
