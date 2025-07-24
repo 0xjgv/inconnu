@@ -3,7 +3,7 @@
 install: # Install dependencies (includes dev group)
 	uv sync --group dev
 
-activate: # Activate virtual environment
+venv: # Create virtual environment
 	uv venv
 
 model-en: # Download English model
