@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import time
+import warnings
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from .config import Config
@@ -33,7 +35,14 @@ __all__ = [
 
 
 class Inconnu:
-    __slots__ = ["entity_redactor", "deanonymize", "config", "add_custom_components"]
+    __slots__ = [
+        "entity_redactor",
+        "deanonymize",
+        "config",
+        "add_custom_components",
+        "_executor",
+        "_chunk_size",
+    ]
 
     def __init__(
         self,
@@ -43,6 +52,8 @@ class Inconnu:
         config: Config | None = None,
         data_retention_days: int = 30,
         max_text_length: int = 75_000,
+        executor: ThreadPoolExecutor | None = None,
+        chunk_size: int = 100,
     ):
         # Use provided config or create default from parameters
         if config is None:
@@ -57,12 +68,39 @@ class Inconnu:
         self.add_custom_components = self.entity_redactor.add_custom_components
         self.deanonymize = self.entity_redactor.deanonymize
         self.config = config
+        self._executor = executor
+        self._chunk_size = chunk_size
 
     def _log(self, *args, **kwargs):
         print(*args, **kwargs)
 
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
+
+    def _validate_input(self, text: str, strict: bool = False) -> None:
+        """Validate input text before processing.
+
+        Args:
+            text: Text to validate
+            strict: If True, apply stricter validation rules
+
+        Raises:
+            TextTooLongError: If text exceeds maximum length
+            ValueError: If text is invalid
+        """
+        if len(text) > self.config.max_text_length:
+            raise TextTooLongError(len(text), self.config.max_text_length)
+
+        if strict:
+            # Check for valid encoding
+            try:
+                text.encode("utf-8")
+            except UnicodeEncodeError as e:
+                raise ValueError(f"Text contains invalid unicode characters: {e}")
+
+            # Warn about empty or whitespace-only text
+            if not text.strip():
+                warnings.warn("Processing empty or whitespace-only text", UserWarning)
 
     def __call__(
         self, *, text: str, deanonymize: bool = True, store_original: bool = False
@@ -153,17 +191,30 @@ class Inconnu:
     async def redact_async(self, text: str) -> str:
         """Async version of redact() for non-blocking anonymization.
 
+        WARNING: Due to Python's GIL, CPU-bound NLP tasks do not benefit significantly
+        from thread-based async execution. For true parallelism with large batches,
+        consider using redact_batch() with multiprocessing or process-based execution.
+
         Args:
             text: The text to anonymize
 
         Returns:
             The anonymized text with entities replaced by generic labels like [PERSON]
         """
+        warnings.warn(
+            "Async methods use thread-based execution which may not improve performance "
+            "for CPU-bound NLP tasks. Consider batch processing for better performance.",
+            UserWarning,
+            stacklevel=2,
+        )
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.redact, text)
+        executor = self._executor or None
+        return await loop.run_in_executor(executor, self.redact, text)
 
     async def anonymize_async(self, text: str) -> str:
         """Async alias for redact_async() - non-blocking anonymization.
+
+        See redact_async() for performance considerations.
 
         Args:
             text: The text to anonymize
@@ -176,6 +227,8 @@ class Inconnu:
     async def pseudonymize_async(self, text: str) -> tuple[str, dict[str, str]]:
         """Async version of pseudonymize() for non-blocking operations.
 
+        See redact_async() for performance considerations.
+
         Args:
             text: The text to pseudonymize
 
@@ -183,30 +236,93 @@ class Inconnu:
             Tuple of (pseudonymized_text, entity_map) where entity_map allows de-anonymization
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.pseudonymize, text)
+        executor = self._executor or None
+        return await loop.run_in_executor(executor, self.pseudonymize, text)
 
     # Batch processing methods
-    def redact_batch(self, texts: list[str]) -> list[str]:
+    def redact_batch(
+        self, texts: list[str], chunk_size: int | None = None
+    ) -> list[str]:
         """Process multiple texts for anonymization in batch.
+
+        For large batches, processes texts in chunks to manage memory usage efficiently.
 
         Args:
             texts: List of texts to anonymize
+            chunk_size: Number of texts to process at once (defaults to self._chunk_size)
 
         Returns:
             List of anonymized texts
         """
-        return [self.redact(text) for text in texts]
+        chunk_size = chunk_size or self._chunk_size
+        results = []
 
-    def pseudonymize_batch(self, texts: list[str]) -> list[tuple[str, dict[str, str]]]:
+        # Process in chunks for memory efficiency
+        for i in range(0, len(texts), chunk_size):
+            chunk = texts[i : i + chunk_size]
+            try:
+                # Validate all texts in chunk
+                for text in chunk:
+                    self._validate_input(text)
+
+                # Process chunk
+                chunk_results = [self.redact(text) for text in chunk]
+                results.extend(chunk_results)
+
+                # Log progress for large batches
+                if len(texts) > chunk_size * 2:
+                    self._log(
+                        f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
+                    )
+
+            except Exception as e:
+                # Log which chunk failed
+                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                raise
+
+        return results
+
+    def pseudonymize_batch(
+        self, texts: list[str], chunk_size: int | None = None
+    ) -> list[tuple[str, dict[str, str]]]:
         """Process multiple texts for pseudonymization in batch.
+
+        For large batches, processes texts in chunks to manage memory usage efficiently.
 
         Args:
             texts: List of texts to pseudonymize
+            chunk_size: Number of texts to process at once (defaults to self._chunk_size)
 
         Returns:
             List of tuples (pseudonymized_text, entity_map)
         """
-        return [self.pseudonymize(text) for text in texts]
+        chunk_size = chunk_size or self._chunk_size
+        results = []
+
+        # Process in chunks for memory efficiency
+        for i in range(0, len(texts), chunk_size):
+            chunk = texts[i : i + chunk_size]
+            try:
+                # Validate all texts in chunk
+                for text in chunk:
+                    self._validate_input(text)
+
+                # Process chunk
+                chunk_results = [self.pseudonymize(text) for text in chunk]
+                results.extend(chunk_results)
+
+                # Log progress for large batches
+                if len(texts) > chunk_size * 2:
+                    self._log(
+                        f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
+                    )
+
+            except Exception as e:
+                # Log which chunk failed
+                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                raise
+
+        return results
 
     async def redact_batch_async(self, texts: list[str]) -> list[str]:
         """Async batch processing for anonymization.
@@ -233,3 +349,58 @@ class Inconnu:
         """
         tasks = [self.pseudonymize_async(text) for text in texts]
         return await asyncio.gather(*tasks)
+
+    # Utility methods
+    def get_supported_patterns(self) -> list[str]:
+        """Get list of all supported entity patterns.
+
+        Returns:
+            List of pattern names
+        """
+        from .nlp.patterns import PATTERN_DOMAINS
+
+        return list(PATTERN_DOMAINS.keys())
+
+    def get_performance_stats(self) -> dict:
+        """Get performance statistics if available.
+
+        Returns:
+            Dictionary with performance metrics
+        """
+        # This is a placeholder for future performance tracking
+        return {
+            "singleton_instances": len(self.entity_redactor.__class__._instances)
+            if hasattr(self.entity_redactor.__class__, "_instances")
+            else 1,
+            "chunk_size": self._chunk_size,
+            "max_text_length": self.config.max_text_length,
+        }
+
+    def validate_custom_components(self, components: list[NERComponent]) -> list[str]:
+        """Validate custom NER components.
+
+        Args:
+            components: List of custom components to validate
+
+        Returns:
+            List of validation warnings/errors
+        """
+        warnings = []
+
+        for i, component in enumerate(components):
+            if not hasattr(component, "label"):
+                warnings.append(f"Component {i} missing required 'label' attribute")
+
+            # Check that at least one is not None
+            if component.pattern is None and component.processing_func is None:
+                warnings.append(
+                    f"Component {i} must have either 'pattern' or 'processing_func'"
+                )
+
+            # Check that not both are provided (non-None)
+            if component.pattern is not None and component.processing_func is not None:
+                warnings.append(
+                    f"Component {i} should not have both 'pattern' and 'processing_func'"
+                )
+
+        return warnings
