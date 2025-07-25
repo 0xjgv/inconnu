@@ -312,63 +312,6 @@ class TestAsyncPerformance:
         executor.shutdown(wait=True)
 
 
-class TestStreamingPerformance:
-    """Test streaming functionality performance."""
-
-    def test_streaming_large_text(self):
-        """Test streaming performance for large texts."""
-        config = Config(max_text_length=500_000)  # Allow larger texts for this test
-        inconnu = Inconnu(config=config)
-
-        # Create very large text (1MB)
-        large_text = "This is a test with John Doe and jane@email.com. " * 10000
-
-        # Traditional processing
-        start_traditional = time.time()
-        _ = inconnu.redact(large_text)
-        time_traditional = time.time() - start_traditional
-
-        # Streaming processing
-        start_streaming = time.time()
-        _ = inconnu.redact_stream(large_text, chunk_size=10000)
-        time_streaming = time.time() - start_streaming
-
-        print("\nStreaming performance:")
-        print(f"  Text size: {len(large_text):,} characters")
-        print(f"  Traditional: {time_traditional:.3f}s")
-        print(f"  Streaming: {time_streaming:.3f}s")
-        print(
-            f"  Memory efficient: {'Yes' if time_streaming < time_traditional * 1.5 else 'No'}"
-        )
-
-        # Streaming shouldn't be much slower
-        assert time_streaming < time_traditional * 1.5
-
-    def test_streaming_memory_efficiency(self):
-        """Test that streaming uses less memory for large texts."""
-        process = psutil.Process(os.getpid())
-        config = Config(max_text_length=1_000_000)  # Allow larger texts for this test
-        inconnu = Inconnu(config=config)
-
-        # Very large text
-        huge_text = "Test data " * 100000  # ~1MB
-
-        # Measure memory during streaming
-        initial_memory = process.memory_info().rss / 1024 / 1024
-
-        _ = inconnu.redact_stream(huge_text, chunk_size=5000)
-
-        peak_memory = process.memory_info().rss / 1024 / 1024
-        memory_used = peak_memory - initial_memory
-
-        print("\nStreaming memory usage:")
-        print(f"  Text size: {len(huge_text):,} characters")
-        print(f"  Memory used: {memory_used:.1f} MB")
-
-        # Should use reasonable memory
-        assert memory_used < 50  # MB
-
-
 class TestPatternPerformance:
     """Test performance of expanded pattern library."""
 

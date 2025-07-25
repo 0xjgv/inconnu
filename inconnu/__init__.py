@@ -350,46 +350,6 @@ class Inconnu:
         tasks = [self.pseudonymize_async(text) for text in texts]
         return await asyncio.gather(*tasks)
 
-    # Streaming support
-    def redact_stream(
-        self, text: str, chunk_size: int = 10000, overlap: int = 100
-    ) -> str:
-        """Process large text in streaming chunks while preserving entity boundaries.
-
-        Args:
-            text: Large text to process
-            chunk_size: Size of each chunk in characters
-            overlap: Number of characters to overlap between chunks to catch entities on boundaries
-
-        Returns:
-            Redacted text
-        """
-        if len(text) <= chunk_size:
-            return self.redact(text)
-
-        result_parts = []
-        i = 0
-
-        while i < len(text):
-            # Get chunk with overlap
-            chunk_start = max(0, i - overlap if i > 0 else 0)
-            chunk_end = min(len(text), i + chunk_size)
-            chunk = text[chunk_start:chunk_end]
-
-            # Process chunk
-            redacted_chunk = self.redact(chunk)
-
-            # If this is not the first chunk, remove the overlap from the beginning
-            if i > 0 and overlap > 0:
-                # Find where the overlap ends in the redacted text
-                # This is approximate but helps avoid duplicating redacted entities
-                redacted_chunk = redacted_chunk[overlap:]
-
-            result_parts.append(redacted_chunk)
-            i = chunk_end
-
-        return "".join(result_parts)
-
     # Utility methods
     def get_supported_patterns(self) -> list[str]:
         """Get list of all supported entity patterns.
@@ -431,14 +391,14 @@ class Inconnu:
             if not hasattr(component, "label"):
                 warnings.append(f"Component {i} missing required 'label' attribute")
 
-            if not hasattr(component, "pattern") and not hasattr(
-                component, "processing_func"
-            ):
+            # Check that at least one is not None
+            if component.pattern is None and component.processing_func is None:
                 warnings.append(
                     f"Component {i} must have either 'pattern' or 'processing_func'"
                 )
 
-            if hasattr(component, "pattern") and hasattr(component, "processing_func"):
+            # Check that not both are provided (non-None)
+            if component.pattern is not None and component.processing_func is not None:
                 warnings.append(
                     f"Component {i} should not have both 'pattern' and 'processing_func'"
                 )
