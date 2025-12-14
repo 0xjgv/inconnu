@@ -407,3 +407,128 @@ class EntityRedactor:
         for placeholder, original in processed_data.entity_map.items():
             text = text.replace(placeholder, original)
         return text
+
+    def _process_doc_to_redacted(
+        self, doc: Doc, original_text: str, deanonymize: bool
+    ) -> tuple[str, dict[str, str]]:
+        """Process a spaCy Doc and return redacted text with entity map.
+
+        This is an internal method that handles the redaction logic for a single
+        document. It's separated from redact() to allow reuse in batch processing.
+
+        Args:
+            doc: The spaCy Doc object (already processed by the NLP pipeline)
+            original_text: The original text string
+            deanonymize: Whether to create indexed placeholders for de-anonymization
+
+        Returns:
+            Tuple of (redacted_text, entity_map)
+        """
+        entity_map = {}
+
+        # Validate entities before processing
+        valid_ents = self._validate_entity_spans(doc)
+
+        # Build a list of replacements with correct positions
+        replacements = []
+
+        for ent in valid_ents:
+            try:
+                label = ent.label_
+                if label.startswith("PER"):
+                    label = DefaultEntityLabel.PERSON
+                # Skip CARDINAL entities to avoid over-anonymization
+                if label == "CARDINAL":
+                    continue
+
+                if label not in entity_map:
+                    entity_map[label] = []
+
+                # Trim entity boundaries to not cross newlines
+                start_char = ent.start_char
+                end_char = ent.end_char
+
+                # Check if entity contains newlines and truncate at first newline
+                entity_substr = original_text[start_char:end_char]
+                newline_pos = entity_substr.find("\n")
+                if newline_pos != -1:
+                    # Truncate entity at the newline
+                    end_char = start_char + newline_pos
+
+                # Also trim trailing whitespace
+                while end_char > start_char and original_text[end_char - 1] in " \t\r":
+                    end_char -= 1
+
+                # Skip empty entities
+                if start_char >= end_char:
+                    continue
+
+                # Get the final entity text
+                entity_text = original_text[start_char:end_char]
+
+                placeholder = f"[{label}]"
+                if deanonymize:
+                    placeholder = f"[{label}_{len(entity_map[label])}]"
+                    entity_map[label].append((entity_text, placeholder))
+
+                replacements.append((start_char, end_char, placeholder))
+
+            except Exception as e:
+                logging.warning(
+                    f"Failed to prepare entity '{ent.text}' at position {ent.start_char}: {e}"
+                )
+                continue
+
+        # Sort replacements by start position in reverse order
+        replacements.sort(key=lambda x: x[0], reverse=True)
+
+        # Apply replacements from end to start to maintain positions
+        redacted_text = original_text
+        for start, end, placeholder in replacements:
+            redacted_text = redacted_text[:start] + placeholder + redacted_text[end:]
+
+        return redacted_text, {
+            v[1]: v[0] for values in entity_map.values() for v in values
+        }
+
+    def redact_batch(
+        self,
+        texts: list[str],
+        *,
+        deanonymize: bool = False,
+        batch_size: int = 32,
+    ) -> list[tuple[str, dict[str, str]]]:
+        """Batch process multiple texts using spaCy's optimized nlp.pipe().
+
+        This method is significantly faster than calling redact() in a loop
+        because nlp.pipe() batches texts and processes them more efficiently.
+
+        Args:
+            texts: List of texts to redact
+            deanonymize: Whether to create indexed placeholders for de-anonymization
+            batch_size: Number of texts to process at once (passed to nlp.pipe)
+
+        Returns:
+            List of tuples (redacted_text, entity_map) for each input text
+        """
+        if not texts:
+            return []
+
+        results = []
+
+        # Use nlp.pipe() for efficient batch processing
+        # n_process=1 to avoid multiprocessing overhead for small batches
+        docs = self.nlp.pipe(texts, batch_size=batch_size, n_process=1)
+
+        for doc, original_text in zip(docs, texts):
+            try:
+                redacted_text, entity_map = self._process_doc_to_redacted(
+                    doc, original_text, deanonymize
+                )
+                results.append((redacted_text, entity_map))
+            except Exception as e:
+                logging.error(f"SpaCy batch processing failed for text: {e}")
+                # Return original text if processing fails
+                results.append((original_text, {}))
+
+        return results

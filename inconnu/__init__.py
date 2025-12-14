@@ -241,15 +241,24 @@ class Inconnu:
 
     # Batch processing methods
     def redact_batch(
-        self, texts: list[str], chunk_size: int | None = None
+        self,
+        texts: list[str],
+        chunk_size: int | None = None,
+        *,
+        use_pipe: bool = True,
+        batch_size: int = 32,
     ) -> list[str]:
         """Process multiple texts for anonymization in batch.
 
+        Uses spaCy's optimized nlp.pipe() for efficient batch processing by default.
         For large batches, processes texts in chunks to manage memory usage efficiently.
 
         Args:
             texts: List of texts to anonymize
             chunk_size: Number of texts to process at once (defaults to self._chunk_size)
+            use_pipe: If True (default), use optimized nlp.pipe() for batch processing.
+                     If False, fall back to sequential processing.
+            batch_size: Batch size passed to nlp.pipe() (default: 32)
 
         Returns:
             List of anonymized texts
@@ -265,8 +274,17 @@ class Inconnu:
                 for text in chunk:
                     self._validate_input(text)
 
-                # Process chunk
-                chunk_results = [self.redact(text) for text in chunk]
+                # Process chunk using optimized batch method or sequential
+                if use_pipe:
+                    # Use nlp.pipe() optimized batch processing
+                    chunk_results = self.entity_redactor.redact_batch(
+                        chunk, deanonymize=False, batch_size=batch_size
+                    )
+                    # Extract just the redacted text (first element of tuple)
+                    chunk_results = [result[0] for result in chunk_results]
+                else:
+                    # Fall back to sequential processing
+                    chunk_results = [self.redact(text) for text in chunk]
                 results.extend(chunk_results)
 
                 # Log progress for large batches
@@ -283,15 +301,24 @@ class Inconnu:
         return results
 
     def pseudonymize_batch(
-        self, texts: list[str], chunk_size: int | None = None
+        self,
+        texts: list[str],
+        chunk_size: int | None = None,
+        *,
+        use_pipe: bool = True,
+        batch_size: int = 32,
     ) -> list[tuple[str, dict[str, str]]]:
         """Process multiple texts for pseudonymization in batch.
 
+        Uses spaCy's optimized nlp.pipe() for efficient batch processing by default.
         For large batches, processes texts in chunks to manage memory usage efficiently.
 
         Args:
             texts: List of texts to pseudonymize
             chunk_size: Number of texts to process at once (defaults to self._chunk_size)
+            use_pipe: If True (default), use optimized nlp.pipe() for batch processing.
+                     If False, fall back to sequential processing.
+            batch_size: Batch size passed to nlp.pipe() (default: 32)
 
         Returns:
             List of tuples (pseudonymized_text, entity_map)
@@ -307,8 +334,15 @@ class Inconnu:
                 for text in chunk:
                     self._validate_input(text)
 
-                # Process chunk
-                chunk_results = [self.pseudonymize(text) for text in chunk]
+                # Process chunk using optimized batch method or sequential
+                if use_pipe:
+                    # Use nlp.pipe() optimized batch processing
+                    chunk_results = self.entity_redactor.redact_batch(
+                        chunk, deanonymize=True, batch_size=batch_size
+                    )
+                else:
+                    # Fall back to sequential processing
+                    chunk_results = [self.pseudonymize(text) for text in chunk]
                 results.extend(chunk_results)
 
                 # Log progress for large batches
