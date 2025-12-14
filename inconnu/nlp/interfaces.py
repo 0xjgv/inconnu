@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from re import Pattern
 from typing import Callable, NamedTuple
 
@@ -14,6 +14,10 @@ class ProcessedData:
     text_length: int
     timestamp: str
     hashed_id: str
+    # Position-based mapping for robust de-anonymization
+    # Maps placeholder -> (start_position, end_position) in redacted_text
+    # This allows accurate restoration even if original text contained placeholder-like strings
+    entity_positions: dict[str, tuple[int, int]] = field(default_factory=dict)
 
 
 class NERComponent(NamedTuple):
