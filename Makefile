@@ -66,4 +66,4 @@ install-models: # Install models required for testing
 test: install-models # Run tests
 	@. $(SCRIPTS) && \
 		print_header "test" "Running tests" && \
-		run_silent_with_test_count "Pytest" "uv run pytest" "pytest"
+		run_silent_with_test_count "Pytest" "uv run pytest -x" "pytest"
