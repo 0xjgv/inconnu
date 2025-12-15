@@ -40,9 +40,6 @@ config = Config(
     log_performance=True,  # Enable performance logging
 )
 
-# Enable education domain patterns
-config.enable_domain_patterns("education")
-
 inconnu = Inconnu(config=config)
 
 print("=" * 60)
@@ -441,15 +438,12 @@ print("""
 print("\n\n7. DEMONSTRATING NEW FEATURES")
 print("-" * 30)
 
-# Demonstrate streaming for large documents
-print("\n7a. Streaming Large Text")
+# Demonstrate processing large documents
+print("\n7a. Processing Large Text")
 large_text = enrollment_record * 10  # Simulate large document
-try:
-    streamed_result = inconnu.redact_stream(large_text, chunk_size=1000)
-    print(f"Streamed processing of {len(large_text)} chars successful")
-    print(f"Result preview: {streamed_result[:200]}...")
-except Exception as e:
-    print(f"Streaming error: {e}")
+result = inconnu.redact(large_text)
+print(f"Processed {len(large_text)} chars successfully")
+print(f"Result preview: {result[:200]}...")
 
 # Demonstrate batch processing with progress
 print("\n7b. Batch Processing Multiple Documents")

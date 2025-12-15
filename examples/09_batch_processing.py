@@ -35,7 +35,6 @@ config = Config(
     batch_size=100,
     chunk_size=1000,
     enable_performance_monitoring=True,
-    prefer_processes=False,  # Use threads for I/O-bound work
 )
 
 # Initialize Inconnu with custom executor for better async performance
@@ -211,14 +210,14 @@ print("Processing streaming log data...")
 processed_count = 0
 start_time = time.time()
 
-# Also demonstrate the new streaming support for large texts
+# Process large text directly
 large_log = "\n".join(generate_log_entries()) * 100  # Simulate large log file
-print(f"\nProcessing large log file ({len(large_log)} chars) with streaming...")
-stream_start = time.time()
-streamed_result = inconnu.redact_stream(large_log, chunk_size=500, overlap=50)
-stream_time = time.time() - stream_start
-print(f"Streamed processing completed in {stream_time:.3f} seconds")
-print(f"Throughput: {len(large_log) / stream_time:.0f} chars/second")
+print(f"\nProcessing large log file ({len(large_log)} chars)...")
+process_start = time.time()
+processed_result = inconnu.redact(large_log)
+process_time = time.time() - process_start
+print(f"Processing completed in {process_time:.3f} seconds")
+print(f"Throughput: {len(large_log) / process_time:.0f} chars/second")
 
 # Traditional per-entry processing
 print("\nTraditional per-entry processing:")
@@ -390,36 +389,31 @@ print("""
    - Consider ThreadPoolExecutor for better control
    - Use multiprocessing for true parallelism
 
-4. MEMORY MANAGEMENT (ENHANCED):
+4. MEMORY MANAGEMENT:
    - Use redact_batch() with chunk_size parameter
-   - Use redact_stream() for very large single documents
    - Configure memory limits in Config
    - Monitor memory usage during processing
 
-5. ERROR HANDLING (IMPROVED):
-   - Input validation with _validate_input()
+5. ERROR HANDLING:
+   - Input validation
    - Graceful chunk failure handling
    - Progress logging for large batches
-   - Continue on errors with logging
 
-6. NEW FEATURES:
-   - Streaming support for large texts
+6. FEATURES:
    - Configurable chunk sizes
    - Performance monitoring
-   - Pattern inspection and configuration
+   - Pattern inspection and validation
 
 Performance Tips:
 - Chunk size: 100-1000 records based on text size
-- Use streaming for texts > 100KB
-- Configure thread pool size for async
+- Configure thread pool size for async batch processing
 - Monitor with enable_performance_monitoring
 """)
 
 print("\nExample completed successfully!")
-print("This updated example demonstrated:")
-print("- Realistic async performance expectations")
-print("- New streaming functionality")
-print("- Improved batch processing with chunks")
+print("This example demonstrated:")
+print("- Batch processing with chunks")
+print("- Async batch processing")
 print("- Performance monitoring capabilities")
 print("- Error handling improvements")
 

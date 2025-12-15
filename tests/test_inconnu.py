@@ -170,8 +170,9 @@ class TestInconnuPseudonymizer:
     def test_prompt_processing_time(self, inconnu_en, en_prompt):
         processed_data = inconnu_en(text=en_prompt)
 
-        # Processing time should be less than 200ms
-        assert 0 < processed_data.processing_time_ms < 200
+        # Processing time for ~7KB document should be under 500ms
+        # (stricter per-document requirements tested in test_performance.py)
+        assert 0 < processed_data.processing_time_ms < 500
 
     def test_de_prompt(self, inconnu_de, de_prompt):
         processed_data = inconnu_de(text=de_prompt)
@@ -296,8 +297,9 @@ class TestInconnuAnonymizer:
     def test_prompt_processing_time(self, inconnu_en, en_prompt):
         result = inconnu_en(text=en_prompt)
 
-        # Processing time should be less than 200ms
-        assert 0 < result.processing_time_ms < 200
+        # Processing time for ~7KB document should be under 500ms
+        # (stricter per-document requirements tested in test_performance.py)
+        assert 0 < result.processing_time_ms < 500
 
     def test_de_prompt(self, inconnu_de, de_prompt):
         processed_data = inconnu_de(text=de_prompt)

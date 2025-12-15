@@ -302,16 +302,21 @@ class TestIntegrationWithInconnu:
 
     def test_custom_pattern_registration(self):
         """Test registering custom patterns with Inconnu."""
-        # Create custom components for testing
+        import re
+
+        # Clear singleton cache to ensure custom components are registered
+        Inconnu.clear_cache()
+
+        # Create custom components with unique labels (not conflicting with defaults)
         custom_components = [
             NERComponent(
-                label="STUDENT_ID",
-                pattern=STUDENT_ID_PATTERN_RE,
+                label="CUSTOM_ORDER_ID",
+                pattern=re.compile(r"ORD-\d{8}"),
                 processing_func=None,
             ),
             NERComponent(
-                label="CREDIT_CARD",
-                pattern=CREDIT_CARD_PATTERN_RE,
+                label="CUSTOM_SERIAL",
+                pattern=re.compile(r"SN-[A-Z]{3}-\d{4}"),
                 processing_func=None,
             ),
         ]
@@ -320,11 +325,11 @@ class TestIntegrationWithInconnu:
         inconnu = Inconnu(custom_components=custom_components)
 
         # Test detection
-        text = "Student ABC-1234-5678 paid with card 1234-5678-9012-3456"
+        text = "Order ORD-12345678 with serial SN-ABC-1234"
         result = inconnu.redact(text)
 
-        assert "[STUDENT_ID]" in result
-        assert "[CREDIT_CARD]" in result
+        assert "[CUSTOM_ORDER_ID]" in result
+        assert "[CUSTOM_SERIAL]" in result
 
     def test_pattern_priorities(self):
         """Test that pattern priorities work correctly."""

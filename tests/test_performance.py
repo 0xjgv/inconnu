@@ -89,7 +89,7 @@ class TestProcessingTimeRequirements:
             result = inconnu.redact(large_text)
             elapsed = time.time() - start
             timings.append(elapsed)
-            
+
             # Verify the result is valid
             assert isinstance(result, str)
             assert len(result) > 0
@@ -101,7 +101,7 @@ class TestProcessingTimeRequirements:
         # More lenient time limit based on document size
         # Allow up to 2ms per 1000 characters for large documents
         max_allowed_time = max(1.5, (len(large_text) / 1000) * 0.002)
-        
+
         assert best_time < max_allowed_time, (
             f"Large document took {best_time:.3f}s "
             f"(exceeds limit of {max_allowed_time:.3f}s)"
@@ -146,11 +146,12 @@ class TestMemoryUsage:
         """Test that singleton pattern provides expected benefits."""
         # Warm up - ensure any system caching is active
         _ = Inconnu()
-        
+
         # Clear singleton instances to get a clean test
         from inconnu.nlp.utils import instances
+
         instances.clear()
-        
+
         # Measure first instance creation (includes model loading)
         timings_first = []
         for _ in range(3):
@@ -158,30 +159,26 @@ class TestMemoryUsage:
             start = time.time()
             _ = Inconnu()
             timings_first.append(time.time() - start)
-            
+
         # Take median to reduce outlier impact
         time1 = sorted(timings_first)[1]
-        
+
         # Measure second instance creation (should reuse singleton)
         timings_second = []
         for _ in range(3):
             start = time.time()
             _ = Inconnu()
             timings_second.append(time.time() - start)
-            
-        # Take median to reduce outlier impact  
+
+        # Take median to reduce outlier impact
         time2 = sorted(timings_second)[1]
 
         # More relaxed assertion - second should be notably faster
         # but we don't require a specific speedup ratio
-        assert time2 < time1, (
-            "Singleton not providing performance benefit"
-        )
-        
+        assert time2 < time1, "Singleton not providing performance benefit"
+
         # Also check that second instance is reasonably fast (< 10ms)
-        assert time2 < 0.01, (
-            f"Second instance creation too slow: {time2 * 1000:.1f}ms"
-        )
+        assert time2 < 0.01, f"Second instance creation too slow: {time2 * 1000:.1f}ms"
 
         print("\nSingleton performance:")
         print(f"  First instance: {time1 * 1000:.1f}ms (median of 3 runs)")
@@ -316,15 +313,8 @@ class TestPatternPerformance:
     """Test performance of expanded pattern library."""
 
     def test_pattern_matching_overhead(self):
-        """Test overhead of having many patterns."""
-        # Test with minimal patterns
-        inconnu_minimal = Inconnu()
-
-        # Test with all patterns enabled
-        config = Config()
-        for domain in ["healthcare", "legal", "financial", "education"]:
-            config.enable_domain_patterns(domain)
-        inconnu_full = Inconnu(config=config)
+        """Test performance with default patterns."""
+        inconnu = Inconnu()
 
         test_text = """
         John Doe (SSN: 123-45-6789) studied CS 101 with Prof. Smith.
@@ -333,27 +323,17 @@ class TestPatternPerformance:
         Credit card: 4111-1111-1111-1111, Case #2024-CV-12345.
         """
 
-        # Time minimal patterns
-        start_minimal = time.time()
+        # Time pattern matching
+        start = time.time()
         for _ in range(10):
-            _ = inconnu_minimal.redact(test_text)
-        time_minimal = (time.time() - start_minimal) / 10
+            _ = inconnu.redact(test_text)
+        avg_time = (time.time() - start) / 10
 
-        # Time full patterns
-        start_full = time.time()
-        for _ in range(10):
-            _ = inconnu_full.redact(test_text)
-        time_full = (time.time() - start_full) / 10
+        print("\nPattern matching performance:")
+        print(f"  Average time: {avg_time * 1000:.1f}ms")
 
-        overhead = (time_full - time_minimal) / time_minimal * 100
-
-        print("\nPattern overhead:")
-        print(f"  Minimal patterns: {time_minimal * 1000:.1f}ms")
-        print(f"  Full patterns: {time_full * 1000:.1f}ms")
-        print(f"  Overhead: {overhead:.1f}%")
-
-        # Overhead should be reasonable (< 50%)
-        assert overhead < 50
+        # Pattern matching should be fast (< 100ms average)
+        assert avg_time < 0.1
 
     def test_pattern_compilation_caching(self):
         """Test that pattern compilation is properly cached."""
