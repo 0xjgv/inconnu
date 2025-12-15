@@ -27,6 +27,7 @@ from inconnu import Config, Inconnu, NERComponent
 from inconnu.nlp.patterns import (
     COURSE_CODE_PATTERN_RE,
     GPA_PATTERN_RE,
+    PATTERN_DOMAINS,
     STUDENT_ID_PATTERN_RE,
 )
 
@@ -466,7 +467,7 @@ except Exception as e:
 print("\n7c. Available Education Patterns")
 supported = inconnu.get_supported_patterns()
 education_patterns = [
-    p for p in supported if p in config.domain_pattern_sets.get("education", set())
+    p for p in supported if PATTERN_DOMAINS.get(p) == "education"
 ]
 print(f"Education-specific patterns: {', '.join(education_patterns)}")
 

@@ -291,9 +291,6 @@ print("-" * 30)
 
 def process_large_file_in_chunks(data_lines, chunk_size=100):
     """Process large files in chunks to manage memory - using new batch method"""
-    total_processed = 0
-    chunk_times = []
-
     print(f"Processing in chunks of {chunk_size} using improved batch processing...")
 
     # Process data in chunks using the new chunked batch processing
@@ -314,11 +311,6 @@ def process_large_file_in_chunks(data_lines, chunk_size=100):
     print(f"\nPerformance stats: {stats}")
 
     return results
-
-    avg_chunk_time = sum(chunk_times) / len(chunk_times)
-    print(f"\nTotal records: {total_processed}")
-    print(f"Average chunk processing time: {avg_chunk_time:.3f}s")
-    print(f"Estimated throughput: {chunk_size / avg_chunk_time:.1f} records/second")
 
 
 # Simulate large dataset
