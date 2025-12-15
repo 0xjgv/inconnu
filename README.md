@@ -81,6 +81,7 @@ inconnu-download --uv-help
 #### Alternative: Direct spaCy Download
 
 You can also use spaCy directly if preferred:
+
 ```bash
 python -m spacy download en_core_web_sm   # English small
 python -m spacy download de_core_news_lg  # German large
@@ -89,12 +90,14 @@ python -m spacy download de_core_news_lg  # German large
 ### Install from Source
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/0xjgv/inconnu.git
    cd inconnu
    ```
 
 2. **Install with UV (recommended for development)**:
+
    ```bash
    uv sync                      # Install dependencies
    inconnu-download en de       # Download language models
@@ -102,6 +105,7 @@ python -m spacy download de_core_news_lg  # German large
    ```
 
 3. **Or install with pip**:
+
    ```bash
    pip install -e .     # Install in editable mode
    python -m spacy download en_core_web_sm
@@ -153,6 +157,7 @@ inconnu_trf = Inconnu(
 ```
 
 **Model Selection Guide:**
+
 - `en_core_web_sm`: Fast processing, good for high-volume
 - `en_core_web_lg`: Better accuracy, moderate speed
 - `en_core_web_trf`: Highest accuracy, GPU-optimized (recommended for sensitive data)
@@ -340,21 +345,27 @@ except ProcessingError as e:
 ## Use Cases
 
 ### 1. **Customer Support Systems**
+
 Automatically redact personal information from customer service emails, chat logs, and support tickets while maintaining context for analysis.
 
 ### 2. **Legal Document Processing**
+
 Anonymize legal documents, contracts, and case files for training, analysis, or public release while ensuring GDPR compliance.
 
 ### 3. **Medical Record Anonymization**
+
 Process medical records and research data to remove patient identifiers while preserving clinical information for research purposes.
 
 ### 4. **Financial Transaction Analysis**
+
 Redact personal financial information from transaction logs and banking communications for fraud analysis and compliance reporting.
 
 ### 5. **Survey and Feedback Analysis**
+
 Anonymize customer feedback, survey responses, and user-generated content for analysis while protecting respondent privacy.
 
 ### 6. **Training Data Preparation**
+
 Prepare training datasets for machine learning models by removing personal identifiers from text data while maintaining semantic meaning.
 
 ## Supported Entity Types
@@ -380,11 +391,13 @@ We welcome contributions to Inconnu! As an open source project, we believe in th
 ### How to Contribute
 
 #### 1. **Bug Reports & Feature Requests**
+
 - Open an issue on GitHub with detailed descriptions
 - Include code examples and expected vs actual behavior
 - Tag issues appropriately (bug, enhancement, documentation)
 
 #### 2. **Code Contributions**
+
 ```bash
 # Fork the repository and create a feature branch
 git checkout -b feature/your-feature-name
@@ -400,12 +413,14 @@ make lint
 ```
 
 #### 3. **Development Guidelines**
+
 - Follow existing code style and patterns
 - Add tests for new functionality
 - Update documentation for user-facing changes
 - Ensure GDPR compliance considerations are addressed
 
 #### 4. **Areas for Contribution**
+
 - **Language Support**: Add new language models and region-specific entity detection
 - **Custom Entities**: Implement detection for industry-specific identifiers
 - **Performance**: Optimize processing speed and memory usage
@@ -413,6 +428,7 @@ make lint
 - **Testing**: Expand test coverage and edge case handling
 
 #### 5. **Code Review Process**
+
 - All contributions require code review
 - Automated tests must pass
 - Documentation updates are appreciated
@@ -440,18 +456,19 @@ Thank you for helping make Inconnu a better tool for data privacy and GDPR compl
 To publish a new version to PyPI:
 
 1. **Configure Trusted Publisher** (first time only):
-   - Go to https://pypi.org/manage/project/inconnu/settings/publishing/
+   - Go to <https://pypi.org/manage/project/inconnu/settings/publishing/>
    - Add a new trusted publisher:
      - Publisher: GitHub
      - Organization/username: `0xjgv`
      - Repository name: `inconnu`
      - Workflow name: `publish.yml`
      - Environment name: `pypi` (optional but recommended)
-   - For Test PyPI, do the same at https://test.pypi.org with environment name: `testpypi`
+   - For Test PyPI, do the same at <https://test.pypi.org> with environment name: `testpypi`
 
 2. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
 
 3. **Create a Git Tag**:
+
    ```bash
    git tag v0.1.0
    git push origin v0.1.0
@@ -486,6 +503,7 @@ twine upload dist/*
 ### GitHub Environments (Recommended)
 
 Configure GitHub environments for additional security:
+
 1. Go to Settings → Environments
 2. Create `pypi` and `testpypi` environments
 3. Add protection rules:
