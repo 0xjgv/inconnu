@@ -41,6 +41,7 @@ class Inconnu:
     __slots__ = [
         "entity_redactor",
         "deanonymize",
+        "restore",
         "config",
         "add_custom_components",
         "_executor",
@@ -69,6 +70,7 @@ class Inconnu:
             language=language,
         )
         self.add_custom_components = self.entity_redactor.add_custom_components
+        self.restore = self.entity_redactor.restore
         self.deanonymize = self.entity_redactor.deanonymize
         self.config = config
         self._executor = executor

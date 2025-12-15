@@ -316,6 +316,8 @@ class EntityRedactor:
             return text, {}
 
         entity_map = {}
+        # Track text -> placeholder mapping for consistency
+        consistency_map = {}
 
         # Validate entities before processing
         valid_ents = self._validate_entity_spans(doc)
@@ -338,6 +340,7 @@ class EntityRedactor:
 
                 if label not in entity_map:
                     entity_map[label] = []
+                    consistency_map[label] = {}
 
                 # Trim entity boundaries to not cross newlines
                 entity_text = ent.text
@@ -372,8 +375,13 @@ class EntityRedactor:
 
                 placeholder = f"[{label}]"
                 if deanonymize:
-                    placeholder = f"[{label}_{len(entity_map[label])}]"
-                    entity_map[label].append((entity_text, placeholder))
+                    # Check if we already have a placeholder for this exact text
+                    if entity_text in consistency_map[label]:
+                        placeholder = consistency_map[label][entity_text]
+                    else:
+                        placeholder = f"[{label}_{len(entity_map[label])}]"
+                        entity_map[label].append((entity_text, placeholder))
+                        consistency_map[label][entity_text] = placeholder
 
                 replacements.append((start_char, end_char, placeholder))
                 successful_replacements += 1
@@ -402,8 +410,20 @@ class EntityRedactor:
             v[1]: v[0] for values in entity_map.values() for v in values
         }
 
+    def restore(self, text: str, entity_map: dict[str, str]) -> str:
+        """Restore original entities in text using the entity map.
+
+        Args:
+            text: Text containing placeholders (e.g., LLM output)
+            entity_map: Dictionary mapping placeholders to original text
+
+        Returns:
+            Text with placeholders replaced by original values
+        """
+        restored_text = text
+        for placeholder, original in entity_map.items():
+            restored_text = restored_text.replace(placeholder, original)
+        return restored_text
+
     def deanonymize(self, *, processed_data: ProcessedData) -> str:
-        text = processed_data.redacted_text
-        for placeholder, original in processed_data.entity_map.items():
-            text = text.replace(placeholder, original)
-        return text
+        return self.restore(processed_data.redacted_text, processed_data.entity_map)
