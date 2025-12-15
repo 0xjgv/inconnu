@@ -112,18 +112,20 @@ python -m spacy download de_core_news_lg  # German large
 For development, the Makefile provides convenience targets:
 
 ```bash
-# Download models using make commands
-make model-en        # English small
-make model-de        # German small
-make model-it        # Italian small
-make model-es        # Spanish small
-make model-fr        # French small
-
-# Other development commands
-make test           # Run tests
+make install        # Install dependencies
+make test           # Run tests (auto-downloads required models)
+make check          # Run format check, lint, and tests
 make lint           # Check code with ruff
 make format         # Format code
-make clean          # Clean cache and format code
+make clean          # Format, lint, fix, and clean cache
+```
+
+To download additional language models, use the CLI directly:
+
+```bash
+uv run inconnu-download en de fr   # Download specific models
+uv run inconnu-download all        # Download all models
+uv run inconnu-download --list     # List available models
 ```
 
 ### Using Different Models in Code
@@ -162,18 +164,18 @@ For a complete list of supported models, run `inconnu-download --list`
 ### Available Commands
 
 ```bash
-# Development workflow
 make install          # Install all dependencies
-make model-de         # Download German spaCy model
-make model-it         # Download Italian spaCy model
-make model-es         # Download Spanish spaCy model
-make model-fr         # Download French spaCy model
-make test            # Run full test suite
-make lint            # Check code with ruff
-make format          # Format code with ruff
-make fix             # Auto-fix linting issues
-make clean           # Format, lint, fix, and clean cache
-make update-deps     # Update dependencies
+make test             # Run full test suite (downloads required models)
+make check            # Run format check, lint, and tests
+make lint             # Check code with ruff
+make format           # Format code with ruff
+make fix              # Auto-fix linting issues
+make clean            # Format, lint, fix, and clean cache
+make update-deps      # Update dependencies
+
+# Download language models via CLI
+uv run inconnu-download en de it   # Download specific models
+uv run inconnu-download all        # Download all supported models
 ```
 
 ### Running Tests

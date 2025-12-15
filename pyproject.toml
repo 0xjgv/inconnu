@@ -37,7 +37,7 @@ Issues = "https://github.com/0xjgv/inconnu/issues"
 
 # Note: spaCy models are not included as optional dependencies to avoid downloading
 # all models when running `uv lock`. Use the `inconnu-download` command or the
-# Makefile targets (make model-de, make model-it, etc.) to install models as needed.
+# Makefile targets (make install-models) to install models as needed.
 
 [project.scripts]
 inconnu-download = "inconnu.model_installer:main"
