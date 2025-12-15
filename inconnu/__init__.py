@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,8 @@ from .exceptions import (
 )
 from .nlp.entity_redactor import EntityRedactor
 from .nlp.interfaces import NERComponent, ProcessedData
+
+logger = logging.getLogger(__name__)
 
 # Package version
 __version__ = "0.1.1"
@@ -71,9 +74,6 @@ class Inconnu:
         self._executor = executor
         self._chunk_size = chunk_size
 
-    def _log(self, *args, **kwargs):
-        print(*args, **kwargs)
-
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
@@ -106,7 +106,7 @@ class Inconnu:
         self, *, text: str, deanonymize: bool = True, store_original: bool = False
     ) -> ProcessedData:
         start_time = time.time()
-        self._log(f"Processing text ({deanonymize=}): {len(text)} characters")
+        logger.info(f"Processing text ({deanonymize=}): {len(text)} characters")
         if len(text) > self.config.max_text_length:
             raise TextTooLongError(len(text), self.config.max_text_length)
 
@@ -129,8 +129,8 @@ class Inconnu:
         processed_data.entity_map = entity_map
 
         end_time = time.time()
-        processed_data.processing_time_ms = min((end_time - start_time) * 1000, 199.0)
-        self._log(f"Processing time: {processed_data.processing_time_ms:.2f} ms")
+        processed_data.processing_time_ms = (end_time - start_time) * 1000
+        logger.debug(f"Processing time: {processed_data.processing_time_ms:.2f} ms")
         return processed_data
 
     def redact(self, text: str) -> str:
@@ -187,58 +187,6 @@ class Inconnu:
         except Exception as e:
             raise ProcessingError("Failed to pseudonymize text", e)
 
-    # Async methods for non-blocking operations
-    async def redact_async(self, text: str) -> str:
-        """Async version of redact() for non-blocking anonymization.
-
-        WARNING: Due to Python's GIL, CPU-bound NLP tasks do not benefit significantly
-        from thread-based async execution. For true parallelism with large batches,
-        consider using redact_batch() with multiprocessing or process-based execution.
-
-        Args:
-            text: The text to anonymize
-
-        Returns:
-            The anonymized text with entities replaced by generic labels like [PERSON]
-        """
-        warnings.warn(
-            "Async methods use thread-based execution which may not improve performance "
-            "for CPU-bound NLP tasks. Consider batch processing for better performance.",
-            UserWarning,
-            stacklevel=2,
-        )
-        loop = asyncio.get_event_loop()
-        executor = self._executor or None
-        return await loop.run_in_executor(executor, self.redact, text)
-
-    async def anonymize_async(self, text: str) -> str:
-        """Async alias for redact_async() - non-blocking anonymization.
-
-        See redact_async() for performance considerations.
-
-        Args:
-            text: The text to anonymize
-
-        Returns:
-            The anonymized text with entities replaced by generic labels like [PERSON]
-        """
-        return await self.redact_async(text)
-
-    async def pseudonymize_async(self, text: str) -> tuple[str, dict[str, str]]:
-        """Async version of pseudonymize() for non-blocking operations.
-
-        See redact_async() for performance considerations.
-
-        Args:
-            text: The text to pseudonymize
-
-        Returns:
-            Tuple of (pseudonymized_text, entity_map) where entity_map allows de-anonymization
-        """
-        loop = asyncio.get_event_loop()
-        executor = self._executor or None
-        return await loop.run_in_executor(executor, self.pseudonymize, text)
-
     # Batch processing methods
     def redact_batch(
         self, texts: list[str], chunk_size: int | None = None
@@ -271,13 +219,13 @@ class Inconnu:
 
                 # Log progress for large batches
                 if len(texts) > chunk_size * 2:
-                    self._log(
+                    logger.info(
                         f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
                     )
 
             except Exception as e:
                 # Log which chunk failed
-                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                logger.error(f"Failed processing chunk {i // chunk_size + 1}: {e}")
                 raise
 
         return results
@@ -313,13 +261,13 @@ class Inconnu:
 
                 # Log progress for large batches
                 if len(texts) > chunk_size * 2:
-                    self._log(
+                    logger.info(
                         f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
                     )
 
             except Exception as e:
                 # Log which chunk failed
-                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                logger.error(f"Failed processing chunk {i // chunk_size + 1}: {e}")
                 raise
 
         return results
@@ -327,19 +275,26 @@ class Inconnu:
     async def redact_batch_async(self, texts: list[str]) -> list[str]:
         """Async batch processing for anonymization.
 
+        Wraps redact_batch() for async/await compatibility.
+        Note: CPU-bound NLP tasks run in a thread pool executor.
+
         Args:
             texts: List of texts to anonymize
 
         Returns:
             List of anonymized texts
         """
-        tasks = [self.redact_async(text) for text in texts]
-        return await asyncio.gather(*tasks)
+        loop = asyncio.get_event_loop()
+        executor = self._executor or None
+        return await loop.run_in_executor(executor, self.redact_batch, texts)
 
     async def pseudonymize_batch_async(
         self, texts: list[str]
     ) -> list[tuple[str, dict[str, str]]]:
         """Async batch processing for pseudonymization.
+
+        Wraps pseudonymize_batch() for async/await compatibility.
+        Note: CPU-bound NLP tasks run in a thread pool executor.
 
         Args:
             texts: List of texts to pseudonymize
@@ -347,8 +302,9 @@ class Inconnu:
         Returns:
             List of tuples (pseudonymized_text, entity_map)
         """
-        tasks = [self.pseudonymize_async(text) for text in texts]
-        return await asyncio.gather(*tasks)
+        loop = asyncio.get_event_loop()
+        executor = self._executor or None
+        return await loop.run_in_executor(executor, self.pseudonymize_batch, texts)
 
     # Utility methods
     def get_supported_patterns(self) -> list[str]:
@@ -404,3 +360,16 @@ class Inconnu:
                 )
 
         return warnings
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear cached EntityRedactor instances, releasing spaCy models from memory.
+
+        Useful for:
+        - Testing (ensuring clean state between tests)
+        - Memory management (releasing loaded models)
+        - Configuration changes (forcing model reload)
+        """
+        from .nlp.utils import clear_singleton_instances
+
+        clear_singleton_instances()
