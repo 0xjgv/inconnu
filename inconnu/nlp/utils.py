@@ -33,6 +33,19 @@ def singleton(cls):
     return get_instance_by_language
 
 
+def clear_singleton_instances():
+    """Clear all singleton instances.
+
+    Useful for:
+    - Testing (ensuring clean state between tests)
+    - Memory management (releasing loaded spaCy models)
+    - Configuration changes (forcing model reload)
+    """
+    global instances
+    with global_lock:
+        instances.clear()
+
+
 # https://github.com/explosion/spaCy/discussions/9147
 # NER labels to identify entities
 class DefaultEntityLabel(StrEnum):
@@ -235,6 +248,33 @@ def filter_overlapping_spans(spans, debug=False):
     return sorted(filtered_spans, key=lambda span: span.start)
 
 
+def merge_and_validate_spans(
+    doc: Doc,
+    new_spans: list[Span],
+    error_prefix: str = "Entity",
+    debug: bool = False,
+) -> list[Span]:
+    """Merge new spans with existing doc entities, validate, and filter overlaps.
+
+    Args:
+        doc: SpaCy Doc object
+        new_spans: New spans to merge with doc.ents
+        error_prefix: Prefix for error logging messages
+        debug: Enable debug logging for conflict resolution
+
+    Returns:
+        Filtered list of valid, non-overlapping spans
+    """
+    all_spans = list(doc.ents) + new_spans
+    valid_spans, errors = validate_entity_spans(all_spans, len(doc))
+
+    if errors:
+        for error in errors[:3]:
+            logging.warning(f"{error_prefix} validation error: {error}")
+
+    return filter_overlapping_spans(valid_spans, debug=debug)
+
+
 def create_ner_component(
     *,
     processing_func: Callable[[Doc], Doc] | None = None,
@@ -258,15 +298,7 @@ def create_ner_component(
             if span:
                 spans.append(Span(doc, span.start, span.end, label=label))
 
-        # Validate spans before filtering
-        all_spans = list(doc.ents) + spans
-        valid_spans, errors = validate_entity_spans(all_spans, len(doc))
-
-        if errors:
-            for error in errors[:3]:  # Log first 3 errors
-                logging.warning(f"Entity validation error: {error}")
-
-        doc.ents = filter_overlapping_spans(valid_spans)
+        doc.ents = merge_and_validate_spans(doc, spans, "Entity")
         return doc
 
     return custom_ner_component_name

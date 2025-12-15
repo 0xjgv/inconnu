@@ -20,9 +20,11 @@ from .utils import (
     DefaultEntityLabel,
     create_ner_component,
     filter_overlapping_spans,
+    merge_and_validate_spans,
     singleton,
     validate_entity_spans,
 )
+from .validators import validate_entity
 
 
 class SpacyModels(StrEnum):
@@ -59,15 +61,7 @@ def process_phone_number(doc: Doc) -> Doc:
                 )
                 seen_spans.add(span)
 
-    # Validate spans before filtering
-    all_spans = list(doc.ents) + spans
-    valid_spans, errors = validate_entity_spans(all_spans, len(doc))
-
-    if errors:
-        for error in errors[:3]:  # Log first 3 errors
-            logging.warning(f"Phone number validation error: {error}")
-
-    doc.ents = filter_overlapping_spans(valid_spans)
+    doc.ents = merge_and_validate_spans(doc, spans, "Phone number")
     return doc
 
 
@@ -167,14 +161,12 @@ def person_with_title(doc: Doc) -> Doc:
         else:
             ents.append(ent)
 
-    # Validate entities before filtering
+    # Validate and filter - note: ents replaces doc.ents, not merges with it
     valid_ents, errors = validate_entity_spans(ents, len(doc))
-
     if errors:
-        for error in errors[:3]:  # Log first 3 errors
+        for error in errors[:3]:
             logging.warning(f"Person entity validation error: {error}")
 
-    # Apply priority-based overlap filtering with debug support
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
     doc.ents = filter_overlapping_spans(valid_ents, debug=debug)
     return doc
@@ -369,6 +361,14 @@ class EntityRedactor:
 
                 # Get the final entity text
                 entity_text = text[start_char:end_char]
+
+                # Validate entity if validator exists (always enforced)
+                is_valid, confidence = validate_entity(label, entity_text)
+                if not is_valid:
+                    logging.debug(
+                        f"Entity '{entity_text}' failed validation for type {label}"
+                    )
+                    continue
 
                 placeholder = f"[{label}]"
                 if deanonymize:
