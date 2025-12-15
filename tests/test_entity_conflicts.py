@@ -5,8 +5,9 @@ ensuring that overlapping entities are handled correctly according
 to priority rules and that the system gracefully handles edge cases.
 """
 
-import pytest
 import re
+
+import pytest
 from spacy.tokens import Span
 
 from inconnu import Config, Inconnu, NERComponent

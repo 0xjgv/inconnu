@@ -15,7 +15,7 @@ instances = {}
 
 def singleton(cls):
     @wraps(cls)
-    def get_instance_by_language(*args, **kwargs) -> "cls":
+    def get_instance_by_language(*args, **kwargs):
         language: str | None = kwargs.get("language")
         key = (cls, language)
 
