@@ -323,13 +323,13 @@ class Inconnu:
         Returns:
             Dictionary with performance metrics
         """
+        from .nlp.utils import instances
+
         # This is a placeholder for future performance tracking
         return {
-            "singleton_instances": len(self.entity_redactor.__class__._instances)
-            if hasattr(self.entity_redactor.__class__, "_instances")
-            else 1,
-            "chunk_size": self._chunk_size,
             "max_text_length": self.config.max_text_length,
+            "singleton_instances": len(instances),
+            "chunk_size": self._chunk_size,
         }
 
     def validate_custom_components(self, components: list[NERComponent]) -> list[str]:

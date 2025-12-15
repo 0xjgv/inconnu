@@ -6,6 +6,7 @@ to priority rules and that the system gracefully handles edge cases.
 """
 
 import pytest
+import re
 from spacy.tokens import Span
 
 from inconnu import Config, Inconnu, NERComponent
@@ -272,7 +273,7 @@ class TestCustomComponentConflicts:
         custom_components = [
             NERComponent(
                 label="CUSTOM_SSN",
-                pattern=r"\b\d{3}-\d{2}-\d{4}\b",
+                pattern=re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
                 processing_func=None,
             ),
         ]
