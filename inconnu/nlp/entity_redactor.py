@@ -5,6 +5,7 @@ from phonenumbers import Leniency, PhoneNumberMatcher
 from spacy import load
 from spacy.tokens import Doc, Span
 
+from ..exceptions import ProcessingError
 from .interfaces import NERComponent, ProcessedData
 from .patterns import (
     BADGE_NUMBER_PATTERN_RE,
@@ -315,13 +316,26 @@ class EntityRedactor:
 
     def redact(
         self, *, text: str, deanonymize: bool = True
-    ) -> tuple[str, dict[str, str]]:
+    ) -> tuple[str, dict[str, str], dict[str, tuple[int, int]]]:
+        """Redact entities from text.
+
+        Args:
+            text: The text to redact
+            deanonymize: If True, use indexed placeholders (e.g., [PERSON_0]) for reversibility
+
+        Returns:
+            Tuple of (redacted_text, entity_map, entity_positions)
+            - redacted_text: Text with entities replaced by placeholders
+            - entity_map: Maps placeholder -> original text
+            - entity_positions: Maps placeholder -> (start, end) position in redacted_text
+        """
         try:
             doc = self.nlp(text)
         except Exception as e:
-            logging.error(f"SpaCy processing failed: {e}")
-            # Return original text if processing fails
-            return text, {}
+            # Critical: Do NOT silently return original text - this could leak PII
+            raise ProcessingError(
+                "SpaCy NLP processing failed. Text was NOT redacted.", e
+            )
 
         entity_map = {}
 
@@ -385,7 +399,22 @@ class EntityRedactor:
                 )
                 continue
 
-        # Sort replacements by start position in reverse order
+        # Calculate final positions for each placeholder in the redacted text
+        # Sort by start position ascending to calculate cumulative offset
+        replacements.sort(key=lambda x: x[0])
+        entity_positions = {}
+        cumulative_offset = 0
+        for start, end, placeholder in replacements:
+            original_len = end - start
+            placeholder_len = len(placeholder)
+            # Final position in redacted text
+            final_start = start + cumulative_offset
+            final_end = final_start + placeholder_len
+            entity_positions[placeholder] = (final_start, final_end)
+            # Update offset for next replacement
+            cumulative_offset += placeholder_len - original_len
+
+        # Sort replacements by start position in reverse order for application
         replacements.sort(key=lambda x: x[0], reverse=True)
 
         # Apply replacements from end to start to maintain positions
@@ -398,12 +427,54 @@ class EntityRedactor:
                 f"Redaction complete: {successful_replacements} successful, {failed_replacements} failed"
             )
 
-        return redacted_text, {
-            v[1]: v[0] for values in entity_map.values() for v in values
-        }
+        return (
+            redacted_text,
+            {v[1]: v[0] for values in entity_map.values() for v in values},
+            entity_positions,
+        )
 
     def deanonymize(self, *, processed_data: ProcessedData) -> str:
+        """Restore original text from redacted text using entity mapping.
+
+        Uses position-based restoration when available for accuracy, falling back
+        to string replacement for backward compatibility.
+
+        Args:
+            processed_data: ProcessedData containing redacted_text, entity_map,
+                          and optionally entity_positions
+
+        Returns:
+            The de-anonymized text with placeholders replaced by original values
+        """
         text = processed_data.redacted_text
-        for placeholder, original in processed_data.entity_map.items():
-            text = text.replace(placeholder, original)
+
+        # Use position-based restoration if positions are available
+        if processed_data.entity_positions:
+            # Sort by position descending to replace from end to start
+            # This preserves positions during replacement
+            sorted_placeholders = sorted(
+                processed_data.entity_positions.items(),
+                key=lambda x: x[1][0],
+                reverse=True,
+            )
+
+            for placeholder, (start, end) in sorted_placeholders:
+                if placeholder in processed_data.entity_map:
+                    original = processed_data.entity_map[placeholder]
+                    # Verify the placeholder is at the expected position
+                    if text[start:end] == placeholder:
+                        text = text[:start] + original + text[end:]
+                    else:
+                        # Position mismatch - fall back to string replacement for this one
+                        # This can happen if redacted_text was modified after redaction
+                        logging.getLogger(__name__).warning(
+                            "Position mismatch for %s: expected at %d:%d, found '%s'. Using string replacement.",
+                            placeholder, start, end, text[start:end]
+                        )
+                        text = text.replace(placeholder, original, 1)
+        else:
+            # Backward compatibility: use simple string replacement
+            for placeholder, original in processed_data.entity_map.items():
+                text = text.replace(placeholder, original)
+
         return text

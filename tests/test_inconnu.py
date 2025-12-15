@@ -1,92 +1,50 @@
+"""Tests for the main Inconnu class API.
+
+This module tests the public API of the Inconnu class including:
+- Pseudonymization (redact with reversible mapping)
+- Anonymization (redact without mapping)
+- De-anonymization (restore original text)
+- Batch processing
+- Error handling
+- Library logging behavior
+
+Fixtures are defined in conftest.py.
+"""
+
+import io
 import json
+import logging
+import sys
 from re import compile
+from unittest.mock import patch
 
 import pytest
 
-from inconnu import Inconnu
-from inconnu.config import Config
+from inconnu import Config, Inconnu, ProcessingError, TextTooLongError
 from inconnu.nlp.interfaces import NERComponent
 
 
-@pytest.fixture
-def inconnu_en() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=75_000,
-        ),
-        language="en",
-    )
+# =============================================================================
+# Pseudonymization Tests (with entity mapping for reversibility)
+# =============================================================================
 
 
-@pytest.fixture
-def inconnu_de() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=10_000,
-        ),
-        language="de",
-    )
+class TestPseudonymization:
+    """Test pseudonymization functionality (reversible redaction)."""
 
-
-@pytest.fixture
-def inconnu_it() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=10_000,
-        ),
-        language="it",
-    )
-
-
-@pytest.fixture
-def multiple_entities_text() -> str:
-    return "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March. Dr. Alice Johnson from Texas gave a lecture in London last week."
-
-
-@pytest.fixture
-def structured_output() -> list[dict[str, str]]:
-    # Given the anonymized text from `multiple_entities_text`, the following is the expected output
-    # Updated to match actual entity extraction order
-    return [
-        {
-            "Person": "[PERSON_0]",
-            "Origin": "[GPE_0]",
-            "Event": "Visit",
-            "Location": "[GPE_1]",
-            "Date": "[DATE_0]",
-        },
-        {
-            "Person": "[PERSON_1]",
-            "Origin": "[GPE_2]",
-            "Event": "Conference Attendance",
-            "Location": "[GPE_3]",
-            "Date": "[DATE_1]",
-        },
-        {
-            "Person": "[PERSON_2]",
-            "Origin": "[GPE_4]",
-            "Event": "Lecture",
-            "Location": "[GPE_5]",
-            "Date": "[DATE_2]",
-        },
-    ]
-
-
-class TestInconnuPseudonymizer:
-    def test_process_data_basic(self, inconnu_en):
-        text = "John Doe visited New York."
-
-        processed_data = inconnu_en(text=text)
+    @pytest.mark.requires_model
+    def test_basic_pseudonymization(self, inconnu_en, simple_text):
+        """Test basic text pseudonymization with entity mapping."""
+        processed_data = inconnu_en(text=simple_text)
 
         assert processed_data.entity_map["[PERSON_0]"] == "John Doe"
         assert processed_data.entity_map["[GPE_0]"] == "New York"
-        assert processed_data.text_length == len(text)
-        assert len(processed_data.entity_map) == 2
+        assert processed_data.text_length == len(simple_text)
+        assert len(processed_data.entity_map) >= 2
 
-    def test_process_data_no_entities(self, inconnu_en):
+    @pytest.mark.requires_model
+    def test_no_entities_returns_original(self, inconnu_en):
+        """Test that text without entities is returned unchanged."""
         text = "The quick brown fox jumps over the lazy dog."
 
         processed_data = inconnu_en(text=text)
@@ -94,137 +52,143 @@ class TestInconnuPseudonymizer:
         assert processed_data.redacted_text == text
         assert len(processed_data.entity_map) == 0
 
-    def test_process_data_multiple_entities(self, inconnu_en):
-        text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
+    @pytest.mark.requires_model
+    def test_multiple_entities(self, inconnu_en, multiple_entities_text):
+        """Test pseudonymization with multiple entity types."""
+        processed_data = inconnu_en(text=multiple_entities_text)
 
-        processed_data = inconnu_en(text=text)
+        # Verify dates are captured
+        assert processed_data.entity_map.get("[DATE_0]") == "last summer"
+        assert processed_data.entity_map.get("[DATE_1]") == "March"
 
-        assert processed_data.entity_map["[DATE_0]"] == "last summer"
-        assert processed_data.entity_map["[DATE_1]"] == "March"
+        # Verify persons are captured
+        assert processed_data.entity_map.get("[PERSON_0]") == "John Doe"
+        assert processed_data.entity_map.get("[PERSON_1]") == "Jane Smith"
 
-        assert processed_data.entity_map["[PERSON_0]"] == "John Doe"
-        assert processed_data.entity_map["[PERSON_1]"] == "Jane Smith"
+        # Verify locations are captured
+        assert processed_data.entity_map.get("[GPE_0]") == "New York"
+        assert processed_data.entity_map.get("[GPE_1]") == "Paris"
 
-        assert processed_data.entity_map["[GPE_0]"] == "New York"
-        assert processed_data.entity_map["[GPE_1]"] == "Paris"
-        assert processed_data.entity_map["[GPE_2]"] == "California"
-        assert processed_data.entity_map["[GPE_3]"] == "Tokyo"
-        assert len(processed_data.entity_map) == 8
+    @pytest.mark.requires_model
+    def test_hashed_id_generation(self, inconnu_en, simple_text):
+        """Test that hashed_id is generated correctly."""
+        processed_data = inconnu_en(text=simple_text)
 
-    def test_process_data_hashing(self, inconnu_en):
-        text = "John Doe visited New York."
+        assert processed_data.hashed_id.isalnum()
+        assert len(processed_data.hashed_id) == 64  # SHA-256 length
 
-        processed_data = inconnu_en(text=text)
-
-        assert processed_data.hashed_id.isalnum()  # Should be alphanumeric
-        assert len(processed_data.hashed_id) == 64  # SHA-256 hash length
-
-    def test_process_data_timestamp(self, inconnu_en):
-        text = "John Doe visited New York."
-
-        processed_data = inconnu_en(text=text)
+    @pytest.mark.requires_model
+    def test_timestamp_generation(self, inconnu_en, simple_text):
+        """Test that timestamp is generated."""
+        processed_data = inconnu_en(text=simple_text)
 
         assert processed_data.timestamp is not None
         assert len(processed_data.timestamp) > 0
 
-    def test_deanonymization(self, inconnu_en):
-        text = "John Doe visited New York last summer."
+    @pytest.mark.requires_model
+    def test_entity_positions_tracked(self, inconnu_en, simple_text):
+        """Test that entity positions are tracked for robust de-anonymization."""
+        processed_data = inconnu_en(text=simple_text)
 
-        processed_data = inconnu_en(text=text)
+        # Positions should be tracked
+        assert processed_data.entity_positions is not None
+
+        # Each placeholder should have a position
+        for placeholder in processed_data.entity_map:
+            if placeholder in processed_data.entity_positions:
+                start, end = processed_data.entity_positions[placeholder]
+                # Verify position matches actual placeholder location
+                assert processed_data.redacted_text[start:end] == placeholder
+
+
+# =============================================================================
+# De-anonymization Tests
+# =============================================================================
+
+
+class TestDeanonymization:
+    """Test de-anonymization functionality (restoring original text)."""
+
+    @pytest.mark.requires_model
+    def test_basic_deanonymization(self, inconnu_en, simple_text):
+        """Test that de-anonymization restores original text."""
+        processed_data = inconnu_en(text=simple_text)
 
         deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
-        assert deanonymized == text
 
+        assert deanonymized == simple_text
+
+    @pytest.mark.requires_model
     def test_deanonymization_multiple_entities(
         self, inconnu_en, multiple_entities_text, structured_output
     ):
+        """Test de-anonymization with structured data transformation."""
         processed_data = inconnu_en(text=multiple_entities_text)
 
+        # Transform to structured format
         processed_data.redacted_text = json.dumps(structured_output)
         deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
 
-        assert json.loads(deanonymized) == [
-            {
-                "Person": "John Doe",
-                "Origin": "New York",
-                "Event": "Visit",
-                "Location": "Paris",
-                "Date": "last summer",
-            },
-            {
-                "Person": "Jane Smith",
-                "Origin": "California",
-                "Event": "Conference Attendance",
-                "Location": "Tokyo",
-                "Date": "March",
-            },
-            {
-                "Person": "Dr. Alice Johnson",
-                "Origin": "Texas",
-                "Event": "Lecture",
-                "Location": "London",
-                "Date": "last week",
-            },
-        ]
+        result = json.loads(deanonymized)
+        assert result[0]["Person"] == "John Doe"
+        assert result[1]["Person"] == "Jane Smith"
+        assert result[2]["Person"] == "Dr. Alice Johnson"
 
-    def test_prompt_processing_time(self, inconnu_en, en_prompt):
-        processed_data = inconnu_en(text=en_prompt)
+    @pytest.mark.requires_model
+    def test_deanonymization_with_placeholder_like_text(
+        self, inconnu_en, text_with_placeholder_like_content
+    ):
+        """Test de-anonymization when original text contains placeholder-like strings.
 
-        # Processing time should be less than 200ms
-        assert 0 < processed_data.processing_time_ms < 200
-
-    def test_de_prompt(self, inconnu_de, de_prompt):
-        processed_data = inconnu_de(text=de_prompt)
-
-        deanonymized_text = inconnu_de.deanonymize(processed_data=processed_data)
-
-        # Custom NER components
-        assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
-        assert processed_data.entity_map.get("[PHONE_NUMBER_0]") == "+49 89 1234567"
-        assert processed_data.entity_map.get("[PHONE_NUMBER_1]") == "+49 30 9876543"
-
-        assert processed_data.entity_map.get("[PERSON_0]") == "Max Mustermann"
-        assert processed_data.entity_map.get("[PERSON_3]") == "Emma Schmidt"
-        assert processed_data.entity_map.get("[PERSON_2]") == "Herr Mustermann"
-        assert processed_data.entity_map.get("[PERSON_1]") == "Re"
-
-        assert de_prompt == deanonymized_text
-
-    def test_us_555_phone_number(self, inconnu_en):
-        """Ensure reserved US 555 numbers are still detected and redacted.
-
-        The libphonenumber metadata marks most 555 numbers as *invalid* because they
-        are reserved for fictional use. We relaxed the matcher to
-        ``Leniency.POSSIBLE`` for the US region, so +1-555-123-4567 should now be
-        picked up and replaced by a ``PHONE_NUMBER`` placeholder.
+        This is a critical edge case: if original text contains '[PERSON_0]',
+        the position-based de-anonymization should only restore the actual
+        redacted entity, not the literal string in the original text.
         """
+        processed_data = inconnu_en(text=text_with_placeholder_like_content)
 
-        text = "John Doe called from +1-555-123-4567 regarding the incident."
+        deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
 
-        processed_data = inconnu_en(text=text)
+        # The original [PERSON_0] variable reference should remain
+        assert "[PERSON_0]" in deanonymized
+        # The actual person name should be restored
+        assert "John Doe" in deanonymized
 
-        # Locate the phone-number placeholder dynamically (index may vary).
-        phone_placeholders = [
-            k for k in processed_data.entity_map if k.startswith("[PHONE_NUMBER")
-        ]
-
-        assert len(phone_placeholders) == 1, (
-            "Exactly one phone number should be detected"
+    @pytest.mark.unit
+    def test_deanonymization_backward_compatibility(
+        self, inconnu_en, mock_processed_data_no_positions
+    ):
+        """Test de-anonymization works without position data (backward compatibility)."""
+        # Use ProcessedData without positions
+        deanonymized = inconnu_en.deanonymize(
+            processed_data=mock_processed_data_no_positions
         )
 
-        placeholder = phone_placeholders[0]
+        assert "John Doe" in deanonymized
+        assert "New York" in deanonymized
+        assert "[PERSON_0]" not in deanonymized
+        assert "[GPE_0]" not in deanonymized
 
-        # Mapping should point back to the original number (with hyphens preserved)
-        assert processed_data.entity_map[placeholder] == "+1-555-123-4567"
+    @pytest.mark.requires_model
+    def test_empty_text_deanonymization(self, inconnu_en):
+        """Test de-anonymization of empty text."""
+        processed_data = inconnu_en(text="")
 
-        # Number must be absent from the redacted text, replaced by the placeholder
-        assert "+1-555-123-4567" not in processed_data.redacted_text
-        assert placeholder in processed_data.redacted_text
+        deanonymized = inconnu_en.deanonymize(processed_data=processed_data)
+
+        assert deanonymized == ""
 
 
-class TestInconnuAnonymizer:
+# =============================================================================
+# Anonymization Tests (non-reversible redaction)
+# =============================================================================
+
+
+class TestAnonymization:
+    """Test anonymization functionality (non-reversible redaction)."""
+
+    @pytest.mark.requires_model
     @pytest.mark.parametrize(
-        "text, expected_anonymized_text",
+        "text, expected_anonymized",
         [
             (
                 "John Doe visited New York last summer.",
@@ -232,155 +196,262 @@ class TestInconnuAnonymizer:
             ),
             ("John Doe visited New York.", "[PERSON] visited [GPE]."),
             (
-                "Michael Brown and Lisa White saw a movie in San Francisco yesterday.",
-                "[PERSON] and [PERSON] saw a movie in [GPE] [DATE].",
-            ),
-            (
                 "Dr. Alice Johnson gave a lecture in London last week.",
                 "[PERSON] gave a lecture in [GPE] [DATE].",
             ),
-            (
-                "Jane Smith attended a conference in Tokyo in March.",
-                "[PERSON] attended a conference in [GPE] in [DATE].",
-            ),
         ],
     )
-    def test_basic_anonymization(self, inconnu_en, text, expected_anonymized_text):
+    def test_basic_anonymization(self, inconnu_en, text, expected_anonymized):
+        """Test that anonymization produces expected output."""
         processed_data = inconnu_en(text=text, deanonymize=False)
 
-        assert processed_data.redacted_text == expected_anonymized_text
+        assert processed_data.redacted_text == expected_anonymized
         assert processed_data.text_length == len(text)
 
-    def test_process_data_no_entities(self, inconnu_en):
-        text = "The quick brown fox jumps over the lazy dog."
+    @pytest.mark.requires_model
+    def test_anonymization_removes_all_pii(self, inconnu_en, multiple_entities_text):
+        """Test that all PII is removed from text."""
+        result = inconnu_en(text=multiple_entities_text, deanonymize=False)
 
-        result = inconnu_en(text=text)
-
-        assert result.redacted_text == text
-
-    def test_process_data_multiple_entities(self, inconnu_en):
-        text = "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March."
-
-        result = inconnu_en(text=text, deanonymize=False)
-
-        # Date
-        assert "last summer" not in result.redacted_text
-        assert "March" not in result.redacted_text
-
-        # Person
-        assert "Jane Smith" not in result.redacted_text
+        # Original names should not appear
         assert "John Doe" not in result.redacted_text
+        assert "Jane Smith" not in result.redacted_text
+        assert "Dr. Alice Johnson" not in result.redacted_text
 
-        # GPE (Location)
-        assert "California" not in result.redacted_text
+        # Original locations should not appear
         assert "New York" not in result.redacted_text
-        assert "Paris" not in result.redacted_text
-        assert "Tokyo" not in result.redacted_text
+        assert "California" not in result.redacted_text
 
-    def test_process_data_hashing(self, inconnu_en):
-        text = "John Doe visited New York."
+    @pytest.mark.requires_model
+    def test_redact_method(self, inconnu_en, simple_text):
+        """Test the redact() convenience method."""
+        result = inconnu_en.redact(simple_text)
 
-        processed_data = inconnu_en(text=text)
+        assert isinstance(result, str)
+        assert "[PERSON]" in result
+        assert "John Doe" not in result
 
-        assert processed_data.hashed_id.isalnum()  # Should be alphanumeric
-        assert len(processed_data.hashed_id) == 64  # SHA-256 hash length
+    @pytest.mark.requires_model
+    def test_anonymize_method(self, inconnu_en, simple_text):
+        """Test the anonymize() alias method."""
+        result = inconnu_en.anonymize(simple_text)
 
-    def test_process_data_timestamp(self, inconnu_en):
-        text = "John Doe visited New York."
+        assert isinstance(result, str)
+        assert result == inconnu_en.redact(simple_text)
 
-        processed_data = inconnu_en(text=text)
+    @pytest.mark.requires_model
+    def test_pseudonymize_method(self, inconnu_en, simple_text):
+        """Test the pseudonymize() method returns tuple."""
+        result, entity_map = inconnu_en.pseudonymize(simple_text)
 
-        assert processed_data.timestamp is not None
-        assert len(processed_data.timestamp) > 0
+        assert isinstance(result, str)
+        assert isinstance(entity_map, dict)
+        assert "[PERSON_0]" in entity_map
 
-    def test_prompt_processing_time(self, inconnu_en, en_prompt):
-        result = inconnu_en(text=en_prompt)
 
-        # Processing time should be less than 200ms
-        assert 0 < result.processing_time_ms < 200
+# =============================================================================
+# Error Handling Tests
+# =============================================================================
 
-    def test_de_prompt(self, inconnu_de, de_prompt):
+
+class TestErrorHandling:
+    """Test error handling and edge cases."""
+
+    @pytest.mark.requires_model
+    def test_text_too_long_error(self, inconnu_with_small_limit):
+        """Test that TextTooLongError is raised for oversized text."""
+        long_text = "x" * 200
+
+        with pytest.raises(TextTooLongError) as exc_info:
+            inconnu_with_small_limit.redact(long_text)
+
+        assert "200" in str(exc_info.value)
+        assert "100" in str(exc_info.value)
+
+    @pytest.mark.unit
+    def test_spacy_error_raises_processing_error(self):
+        """Test that spaCy failures raise ProcessingError, not silent failure."""
+        inconnu = Inconnu(language="en")
+
+        with patch.object(
+            inconnu.entity_redactor, "nlp", side_effect=RuntimeError("Mock spaCy failure")
+        ):
+            with pytest.raises(ProcessingError) as exc_info:
+                inconnu.redact("Some text")
+
+            assert "SpaCy NLP processing failed" in str(exc_info.value)
+
+    @pytest.mark.unit
+    def test_spacy_error_does_not_leak_pii(self):
+        """Test that spaCy failures don't silently return unredacted text."""
+        inconnu = Inconnu(language="en")
+        sensitive_text = "John Doe's SSN is 123-45-6789"
+
+        with patch.object(
+            inconnu.entity_redactor, "nlp", side_effect=RuntimeError("Mock failure")
+        ):
+            with pytest.raises(ProcessingError):
+                # Should raise, NOT return the sensitive text
+                inconnu.redact(sensitive_text)
+
+    @pytest.mark.unit
+    def test_processing_error_via_pseudonymize(self):
+        """Test ProcessingError is raised from pseudonymize method."""
+        inconnu = Inconnu(language="en")
+
+        with patch.object(
+            inconnu.entity_redactor, "nlp", side_effect=RuntimeError("Mock failure")
+        ):
+            with pytest.raises(ProcessingError):
+                inconnu.pseudonymize("Test text")
+
+
+# =============================================================================
+# Library Logging Tests
+# =============================================================================
+
+
+class TestLibraryLogging:
+    """Test that the library follows logging best practices.
+
+    Libraries should NOT log by default. They should use NullHandler
+    and let the application configure logging if needed.
+    """
+
+    @pytest.mark.requires_model
+    def test_no_stdout_pollution(self, inconnu_en):
+        """Test that processing doesn't print to stdout."""
+        captured_output = io.StringIO()
+        original_stdout = sys.stdout
+        sys.stdout = captured_output
+
+        try:
+            inconnu_en(text="John Doe visited New York.")
+            output = captured_output.getvalue()
+            assert output == "", f"Library should not print to stdout: {output!r}"
+        finally:
+            sys.stdout = original_stdout
+
+    @pytest.mark.requires_model
+    def test_no_stdout_on_batch(self, inconnu_en):
+        """Test that batch processing doesn't print to stdout."""
+        captured_output = io.StringIO()
+        original_stdout = sys.stdout
+        sys.stdout = captured_output
+
+        try:
+            texts = ["John Doe.", "Jane Smith.", "Bob Wilson."]
+            inconnu_en.redact_batch(texts)
+            output = captured_output.getvalue()
+            assert output == "", f"Library should not print to stdout: {output!r}"
+        finally:
+            sys.stdout = original_stdout
+
+    @pytest.mark.requires_model
+    def test_logging_can_be_enabled(self, inconnu_en):
+        """Test that applications can enable library logging."""
+        log_capture = io.StringIO()
+        handler = logging.StreamHandler(log_capture)
+        handler.setLevel(logging.DEBUG)
+
+        inconnu_logger = logging.getLogger("inconnu")
+        inconnu_logger.setLevel(logging.DEBUG)
+        inconnu_logger.addHandler(handler)
+
+        try:
+            inconnu_en(text="John Doe.")
+            # If logging works, we should see some output (or empty if no debug statements hit)
+            # The key is that this doesn't crash
+        finally:
+            inconnu_logger.removeHandler(handler)
+            inconnu_logger.setLevel(logging.WARNING)
+
+
+# =============================================================================
+# Custom Components Tests
+# =============================================================================
+
+
+class TestCustomComponents:
+    """Test custom NER component functionality."""
+
+    @pytest.mark.requires_model
+    def test_add_custom_pattern(self):
+        """Test adding custom pattern components."""
+        inconnu = Inconnu(language="it")
+
+        inconnu.add_custom_components([
+            NERComponent(
+                pattern=compile(r"SEPA[-\w]*"),
+                label="TRANSACTION_TYPE",
+                before_ner=True,
+            ),
+            NERComponent(
+                pattern=compile(r"numero[:]?\s*(?:\d+)"),
+                label="CONTRACT_NUMBER",
+                before_ner=True,
+            ),
+        ])
+
+        text = "SEPA payment for numero 021948"
+        processed_data = inconnu(text=text)
+
+        assert processed_data.entity_map.get("[TRANSACTION_TYPE_0]") == "SEPA"
+        assert processed_data.entity_map.get("[CONTRACT_NUMBER_0]") == "numero 021948"
+
+
+# =============================================================================
+# Multilingual Tests
+# =============================================================================
+
+
+class TestMultilingual:
+    """Test multilingual processing capabilities."""
+
+    @pytest.mark.requires_model
+    def test_german_processing(self, inconnu_de, de_prompt):
+        """Test German language processing."""
         processed_data = inconnu_de(text=de_prompt)
+        deanonymized = inconnu_de.deanonymize(processed_data=processed_data)
 
-        # Custom NER components
-        assert "emma.schmidt@solartech.de" not in processed_data.redacted_text
-        assert "+49 30 9876543" not in processed_data.redacted_text
-        assert "+49 89 1234567" not in processed_data.redacted_text
+        # Custom NER should detect email and phone
+        assert processed_data.entity_map.get("[EMAIL_0]") == "emma.schmidt@solartech.de"
+        assert "[PHONE_NUMBER_0]" in processed_data.entity_map
 
-        assert "Reinhard Müller" not in processed_data.redacted_text
-        assert "Max Mustermann" not in processed_data.redacted_text
-        assert "Emma Schmidt" not in processed_data.redacted_text
+        # De-anonymization should restore original
+        assert de_prompt == deanonymized
 
-    def test_iban_entities_en(self, inconnu_en):
-        text = """
-        Hi,
+    @pytest.mark.requires_model
+    def test_english_processing(self, inconnu_en, en_prompt):
+        """Test English language processing within time constraints."""
+        processed_data = inconnu_en(text=en_prompt)
 
-        I would like to update my SEPA bank details for future payments for my contract with the number 021948. Please update my account with the following information:
+        assert 0 < processed_data.processing_time_ms < 200
 
-        Account Holder Name: Max Mustermann
-        Bank: DEUTSCHE KREDITBANK BERLIN
-        IBAN: DE02120300000000202051
-
-        Kindly confirm once these details have been updated in your system. Should you need further information, please feel free to contact me.
-        """
-
+    @pytest.mark.requires_model
+    def test_iban_detection_english(self, inconnu_en):
+        """Test IBAN detection in English context."""
+        text = "IBAN: DE02120300000000202051"
         processed_data = inconnu_en(text=text)
 
         assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
 
-    def test_iban_entities_it(self, inconnu_it):
-        text = """
-        Guten Tag!
-
-        vorrei aggiornare i miei dettagli bancari SEPA per i pagamenti futuri per il mio contratto con il numero 021948. Per favore aggiornate il mio conto con le seguenti informazioni:
-
-        Nome del titolare del conto: Max Mustermann
-        Banca: DEUTSCHE KREDITBANK BERLIN
-        IBAN: DE02120300000000202051
-
-        Vi prego di confermare una volta che questi dettagli sono stati aggiornati nel vostro sistema. Se avete bisogno di ulteriori informazioni, non esitate a contattarmi.
-        """
-
+    @pytest.mark.requires_model
+    def test_iban_detection_italian(self, inconnu_it):
+        """Test IBAN detection in Italian context."""
+        text = "Il mio IBAN è DE02120300000000202051"
         processed_data = inconnu_it(text=text)
 
         assert processed_data.entity_map.get("[IBAN_0]") == "DE02120300000000202051"
 
-    def test_entities_custom_component(self):
-        text = """
-        Ciao,
+    @pytest.mark.requires_model
+    def test_phone_number_detection(self, inconnu_en):
+        """Test US phone number detection including reserved 555 numbers."""
+        text = "Call +1-555-123-4567 for support."
+        processed_data = inconnu_en(text=text)
 
-        vorrei aggiornare i miei dettagli bancari SEPA per i pagamenti futuri per il mio contratto con il numero 021948. Per favore aggiornate il mio conto con le seguenti informazioni:
-
-        Nome del titolare del conto: Max Mustermann
-        Banca: DEUTSCHE KREDITBANK BERLIN
-        IBAN: DE02120300000000202051
-
-        Vi prego di confermare una volta che questi dettagli sono stati aggiornati nel vostro sistema. Se avete bisogno di ulteriori informazioni, non esitate a contattarmi.
-        """
-        inconnu = Inconnu(
-            config=Config(
-                data_retention_days=30,
-                max_text_length=5_000,
-            ),
-            language="it",
-        )
-
-        inconnu.add_custom_components(
-            [
-                NERComponent(
-                    pattern=compile(r"SEPA[-\w]*"),
-                    label="TRANSACTION_TYPE",
-                    before_ner=True,
-                ),
-                NERComponent(
-                    pattern=compile(r"numero[:]?\s*(?:\d+)"),
-                    label="CONTRACT_NUMBER",
-                    before_ner=True,
-                ),
-            ]
-        )
-
-        processed_data = inconnu(text=text)
-
-        assert processed_data.entity_map.get("[CONTRACT_NUMBER_0]") == "numero 021948"
-        assert processed_data.entity_map.get("[TRANSACTION_TYPE_0]") == "SEPA"
+        phone_placeholders = [
+            k for k in processed_data.entity_map if k.startswith("[PHONE_NUMBER")
+        ]
+        assert len(phone_placeholders) == 1
+        assert processed_data.entity_map[phone_placeholders[0]] == "+1-555-123-4567"

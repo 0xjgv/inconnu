@@ -1,11 +1,17 @@
 import asyncio
 import hashlib
+import logging
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from .config import Config
+
+# Library logging best practice: use NullHandler so we don't log by default.
+# Applications can configure logging if they need it.
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 from .exceptions import (
     ConfigurationError,
     InconnuError,
@@ -71,9 +77,6 @@ class Inconnu:
         self._executor = executor
         self._chunk_size = chunk_size
 
-    def _log(self, *args, **kwargs):
-        print(*args, **kwargs)
-
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
@@ -106,7 +109,7 @@ class Inconnu:
         self, *, text: str, deanonymize: bool = True, store_original: bool = False
     ) -> ProcessedData:
         start_time = time.time()
-        self._log(f"Processing text ({deanonymize=}): {len(text)} characters")
+        logger.debug("Processing text (deanonymize=%s): %d characters", deanonymize, len(text))
         if len(text) > self.config.max_text_length:
             raise TextTooLongError(len(text), self.config.max_text_length)
 
@@ -120,17 +123,19 @@ class Inconnu:
             else "",  # Security: don't store original by default
             redacted_text="",
             entity_map={},
+            entity_positions={},
         )
 
-        pseudonymized_text, entity_map = self.entity_redactor.redact(
+        pseudonymized_text, entity_map, entity_positions = self.entity_redactor.redact(
             text=text, deanonymize=deanonymize
         )
         processed_data.redacted_text = pseudonymized_text
         processed_data.entity_map = entity_map
+        processed_data.entity_positions = entity_positions
 
         end_time = time.time()
         processed_data.processing_time_ms = min((end_time - start_time) * 1000, 199.0)
-        self._log(f"Processing time: {processed_data.processing_time_ms:.2f} ms")
+        logger.debug("Processing time: %.2f ms", processed_data.processing_time_ms)
         return processed_data
 
     def redact(self, text: str) -> str:
@@ -150,7 +155,7 @@ class Inconnu:
             raise TextTooLongError(len(text), self.config.max_text_length)
 
         try:
-            result, _ = self.entity_redactor.redact(text=text, deanonymize=False)
+            result, _, _ = self.entity_redactor.redact(text=text, deanonymize=False)
             return result
         except Exception as e:
             raise ProcessingError("Failed to anonymize text", e)
@@ -175,6 +180,10 @@ class Inconnu:
         Returns:
             Tuple of (pseudonymized_text, entity_map) where entity_map allows de-anonymization
 
+        Note:
+            For full functionality including position-based de-anonymization,
+            use the __call__ method instead which returns a ProcessedData object.
+
         Raises:
             TextTooLongError: If text exceeds maximum length
             ProcessingError: If text processing fails
@@ -183,7 +192,10 @@ class Inconnu:
             raise TextTooLongError(len(text), self.config.max_text_length)
 
         try:
-            return self.entity_redactor.redact(text=text, deanonymize=True)
+            redacted_text, entity_map, _ = self.entity_redactor.redact(
+                text=text, deanonymize=True
+            )
+            return redacted_text, entity_map
         except Exception as e:
             raise ProcessingError("Failed to pseudonymize text", e)
 
@@ -271,13 +283,12 @@ class Inconnu:
 
                 # Log progress for large batches
                 if len(texts) > chunk_size * 2:
-                    self._log(
-                        f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
+                    logger.debug(
+                        "Processed %d/%d texts", min(i + chunk_size, len(texts)), len(texts)
                     )
 
             except Exception as e:
-                # Log which chunk failed
-                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                logger.debug("Failed processing chunk %d: %s", i // chunk_size + 1, e)
                 raise
 
         return results
@@ -313,13 +324,12 @@ class Inconnu:
 
                 # Log progress for large batches
                 if len(texts) > chunk_size * 2:
-                    self._log(
-                        f"Processed {min(i + chunk_size, len(texts))}/{len(texts)} texts"
+                    logger.debug(
+                        "Processed %d/%d texts", min(i + chunk_size, len(texts)), len(texts)
                     )
 
             except Exception as e:
-                # Log which chunk failed
-                self._log(f"Failed processing chunk {i // chunk_size + 1}: {e}")
+                logger.debug("Failed processing chunk %d: %s", i // chunk_size + 1, e)
                 raise
 
         return results
