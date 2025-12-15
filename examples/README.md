@@ -72,6 +72,7 @@ Each example follows a consistent structure:
 ## 📋 Quick Reference
 
 ### Basic Anonymization
+
 ```python
 from inconnu import Inconnu
 
@@ -82,6 +83,7 @@ redacted = inconnu.redact(text)
 ```
 
 ### Pseudonymization with Mapping
+
 ```python
 redacted_text, entity_map = inconnu.pseudonymize(text)
 # redacted_text: "[PERSON_0] lives in [GPE_0]"
@@ -89,6 +91,7 @@ redacted_text, entity_map = inconnu.pseudonymize(text)
 ```
 
 ### Custom Entity Detection
+
 ```python
 from inconnu import Inconnu, NERComponent
 import re
@@ -120,6 +123,7 @@ To add a new example:
 ## 🤝 Support
 
 For questions about these examples:
+
 - Check the [main documentation](../README.md)
 - Review the [API reference](https://inconnu.ai/docs)
 - Open an issue on [GitHub](https://github.com/0xjgv/inconnu)
