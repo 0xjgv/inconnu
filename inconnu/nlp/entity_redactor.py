@@ -467,9 +467,9 @@ class EntityRedactor:
                     else:
                         # Position mismatch - fall back to string replacement for this one
                         # This can happen if redacted_text was modified after redaction
-                        logging.warning(
-                            f"Position mismatch for {placeholder}: expected at {start}:{end}, "
-                            f"found '{text[start:end]}'. Using string replacement."
+                        logging.getLogger(__name__).warning(
+                            "Position mismatch for %s: expected at %d:%d, found '%s'. Using string replacement.",
+                            placeholder, start, end, text[start:end]
                         )
                         text = text.replace(placeholder, original, 1)
         else:
