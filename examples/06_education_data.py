@@ -466,9 +466,7 @@ except Exception as e:
 # Demonstrate pattern inspection
 print("\n7c. Available Education Patterns")
 supported = inconnu.get_supported_patterns()
-education_patterns = [
-    p for p in supported if PATTERN_DOMAINS.get(p) == "education"
-]
+education_patterns = [p for p in supported if PATTERN_DOMAINS.get(p) == "education"]
 print(f"Education-specific patterns: {', '.join(education_patterns)}")
 
 print("\n" + "=" * 60)
