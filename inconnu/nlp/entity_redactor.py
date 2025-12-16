@@ -410,19 +410,39 @@ class EntityRedactor:
             v[1]: v[0] for values in entity_map.values() for v in values
         }
 
-    def restore(self, text: str, entity_map: dict[str, str]) -> str:
+    def restore(
+        self,
+        text: str,
+        entity_map: dict[str, str],
+        *,
+        warn_unmatched: bool = True,
+    ) -> str:
         """Restore original entities in text using the entity map.
 
         Args:
             text: Text containing placeholders (e.g., LLM output)
             entity_map: Dictionary mapping placeholders to original text
+            warn_unmatched: If True, log warnings for unmatched tokens (default: True)
 
         Returns:
             Text with placeholders replaced by original values
         """
+        import re
+
         restored_text = text
         for placeholder, original in entity_map.items():
             restored_text = restored_text.replace(placeholder, original)
+
+        if warn_unmatched:
+            # Pattern matches [LABEL_INDEX] format
+            token_pattern = re.compile(r"\[([A-Z_]+)_(\d+)\]")
+            unmatched = token_pattern.findall(restored_text)
+            if unmatched:
+                tokens = [f"[{label}_{idx}]" for label, idx in unmatched]
+                logging.warning(
+                    f"Unmatched tokens in restored text (possible LLM hallucination): {tokens}"
+                )
+
         return restored_text
 
     def deanonymize(self, *, processed_data: ProcessedData) -> str:

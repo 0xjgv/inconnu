@@ -2,6 +2,9 @@ from pathlib import Path
 
 import pytest
 
+# Configure pytest-asyncio
+pytest_plugins = ["pytest_asyncio"]
+
 MOCKS_PATH = Path("tests/mocks")
 
 

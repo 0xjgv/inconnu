@@ -308,6 +308,54 @@ class Inconnu:
         executor = self._executor or None
         return await loop.run_in_executor(executor, self.pseudonymize_batch, texts)
 
+    def restore_batch(
+        self,
+        items: list[tuple[str, dict[str, str]]],
+        chunk_size: int | None = None,
+    ) -> list[str]:
+        """Restore original entities in multiple texts.
+
+        Args:
+            items: List of tuples (text_with_placeholders, entity_map)
+            chunk_size: Number of items to process at once (defaults to self._chunk_size)
+
+        Returns:
+            List of restored texts
+        """
+        chunk_size = chunk_size or self._chunk_size
+        results = []
+
+        for i in range(0, len(items), chunk_size):
+            chunk = items[i : i + chunk_size]
+            chunk_results = [
+                self.restore(text, entity_map) for text, entity_map in chunk
+            ]
+            results.extend(chunk_results)
+
+            if len(items) > chunk_size * 2:
+                logger.info(
+                    f"Restored {min(i + chunk_size, len(items))}/{len(items)} texts"
+                )
+
+        return results
+
+    async def restore_batch_async(
+        self, items: list[tuple[str, dict[str, str]]]
+    ) -> list[str]:
+        """Async batch restoration.
+
+        Wraps restore_batch() for async/await compatibility.
+
+        Args:
+            items: List of tuples (text_with_placeholders, entity_map)
+
+        Returns:
+            List of restored texts
+        """
+        loop = asyncio.get_event_loop()
+        executor = self._executor or None
+        return await loop.run_in_executor(executor, self.restore_batch, items)
+
     # Utility methods
     def get_supported_patterns(self) -> list[str]:
         """Get list of all supported entity patterns.
