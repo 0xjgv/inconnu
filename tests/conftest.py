@@ -2,10 +2,46 @@ from pathlib import Path
 
 import pytest
 
+from inconnu import Inconnu
+from inconnu.config import Config
+
 # Configure pytest-asyncio
 pytest_plugins = ["pytest_asyncio"]
 
 MOCKS_PATH = Path("tests/mocks")
+
+
+@pytest.fixture
+def inconnu_en() -> Inconnu:
+    return Inconnu(
+        config=Config(
+            data_retention_days=30,
+            max_text_length=75_000,
+        ),
+        language="en",
+    )
+
+
+@pytest.fixture
+def inconnu_de() -> Inconnu:
+    return Inconnu(
+        config=Config(
+            data_retention_days=30,
+            max_text_length=10_000,
+        ),
+        language="de",
+    )
+
+
+@pytest.fixture
+def inconnu_it() -> Inconnu:
+    return Inconnu(
+        config=Config(
+            data_retention_days=30,
+            max_text_length=10_000,
+        ),
+        language="it",
+    )
 
 
 @pytest.fixture

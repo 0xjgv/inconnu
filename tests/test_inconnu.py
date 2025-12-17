@@ -9,39 +9,6 @@ from inconnu.nlp.interfaces import NERComponent
 
 
 @pytest.fixture
-def inconnu_en() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=75_000,
-        ),
-        language="en",
-    )
-
-
-@pytest.fixture
-def inconnu_de() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=10_000,
-        ),
-        language="de",
-    )
-
-
-@pytest.fixture
-def inconnu_it() -> Inconnu:
-    return Inconnu(
-        config=Config(
-            data_retention_days=30,
-            max_text_length=10_000,
-        ),
-        language="it",
-    )
-
-
-@pytest.fixture
 def multiple_entities_text() -> str:
     return "John Doe from New York visited Paris last summer. Jane Smith from California attended a conference in Tokyo in March. Dr. Alice Johnson from Texas gave a lecture in London last week."
 
