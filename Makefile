@@ -1,74 +1,35 @@
-# Silent helper (set VERBOSE=1 for full output)
-SILENT_HELPER := source ./scripts/run_silent.sh
+.PHONY: help install test lint format eval eval-baseline eval-scorer
 
-.PHONY: help
-help: ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+help: ## Show targets
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
-##@ Setup
+install: ## Install the package with the dev and eval groups
+	uv sync --group dev --group eval
 
-.PHONY: install
-install: ## Install dependencies (includes dev group)
-	@$(SILENT_HELPER) && \
-		print_main_header "Installing Dependencies" && \
-		run_silent "Sync dev dependencies" "uv sync --group dev"
+test: ## Run the tests
+	uv run pytest -rf
 
-.PHONY: venv
-venv: ## Create virtual environment
-	@uv venv
+lint: ## Check style
+	uv run ruff check .
+	uv run ruff format --check .
 
-.PHONY: update-deps
-update-deps: ## Update dependencies
-	@$(SILENT_HELPER) && \
-		print_main_header "Updating Dependencies" && \
-		run_silent "Update all" "uv update"
+format: ## Fix style
+	uv run ruff check --fix .
+	uv run ruff format .
 
-.PHONY: install-models
-install-models: ## Install models required for testing
-	@$(SILENT_HELPER) && \
-		print_main_header "Installing Test Models" && \
-		run_silent "English model" "uv run inconnu-download en" && \
-		run_silent "German model" "uv run inconnu-download de" && \
-		run_silent "Italian model" "uv run inconnu-download it"
+eval: ## Generate eval data, score every detector, print the table, write evals/results/
+	uv run --group eval python evals/generate.py
+	uv run --group eval python evals/run.py
 
-##@ Code Quality
+eval-baseline: ## eval, plus inconnu 0.1.1 and spaCy en_core_web_sm predictions from their own venv
+	uv run --group eval python evals/generate.py
+	evals/.baseline-venv/bin/python -c "import inconnu, spacy; assert inconnu.__version__ == '0.1.1'; spacy.load('en_core_web_sm')" 2>/dev/null || \
+		(rm -rf evals/.baseline-venv && uv venv evals/.baseline-venv --python 3.12 && \
+		uv pip install --python evals/.baseline-venv/bin/python inconnu==0.1.1 pip && \
+		evals/.baseline-venv/bin/inconnu-download en)
+	evals/.baseline-venv/bin/python evals/baseline.py dev test
+	uv run --group eval python evals/run.py
 
-.PHONY: fix
-fix: ## Fix code style issues
-	@$(SILENT_HELPER) && run_silent "Fix style issues" "uv run ruff check --fix ."
-
-.PHONY: format
-format: ## Format code
-	@$(SILENT_HELPER) && run_silent "Format code" "uv run ruff format ."
-
-.PHONY: lint
-lint: ## Lint code
-	@$(SILENT_HELPER) && run_silent "Lint check" "uv run ruff check ."
-
-.PHONY: check
-quality-check: ## Run quality checks
-	@$(SILENT_HELPER) && print_main_header "Running Quality Checks"
-	@$(MAKE) fix
-	@$(MAKE) format
-	@$(MAKE) lint
-
-##@ Testing
-
-.PHONY: test
-test: install-models ## Run tests
-	@$(SILENT_HELPER) && \
-		print_main_header "Running Tests" && \
-		run_silent_with_test_count "Pytest" "uv run pytest -x" "pytest"
-
-##@ Maintenance
-
-.PHONY: clean
-clean: quality-check ## Clean up cache and build artifacts
-	@$(SILENT_HELPER) && \
-		print_main_header "Cleaning Up" && \
-		run_silent "Remove cache" "rm -fr .pytest_cache */__pycache__ */*/__pycache__" && \
-		run_silent "Ruff clean" "uv run ruff clean"
-
-.PHONY: check
-check: quality-check test ## Run all checks
+eval-scorer: ## Live scorer check on the dev band (needs provider keys; at most 120 calls)
+	uv run --group eval python evals/generate.py
+	cd evals && uv run --group eval python scorer_eval.py --max-calls 120

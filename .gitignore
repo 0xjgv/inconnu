@@ -1,11 +1,13 @@
-.pytest_cache
 __pycache__
 .ruff_cache
+.pytest_cache
 .DS_Store
 .vscode
 .venv
 .env
 db
+evals/data/
+evals/.baseline-venv/
 
 # Agentic
 CLAUDE.md
@@ -13,4 +15,3 @@ CLAUDE.md
 notes.md
 .cursor/
 .tasks/
-
