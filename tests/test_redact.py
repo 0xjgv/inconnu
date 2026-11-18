@@ -24,6 +24,10 @@ def placeholders(text, **kwargs):
         ("card 4111 1111 1111 1111 exp 12/29", "card [CARD] exp 12/29"),
         ("SSN 536-22-1234 here", "SSN [SSN] here"),
         ("from 203.0.113.42 at", "from [IP] at"),
+        (
+            "https://x.example/?email=jane@example.org",
+            "https://x.example/?email=[EMAIL]",
+        ),
         ("from 2001:db8::8a2e:370:7334 at", "from [IP] at"),
         ("Mr. Smith approved it", "[PERSON] approved it"),
         ("Assigned to Maria Gonzalez yesterday", "Assigned to [PERSON] yesterday"),
@@ -194,3 +198,49 @@ def test_redact_json_uses_keys_and_keeps_structure():
         "rows": [{"email": "[EMAIL]", "password": "[SECRET:generic]", "count": 3}],
         "ok": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("text", "kwargs", "leak"),
+    [
+        (
+            "password=Jane.Doe@example.org!x9",
+            {},
+            "!x9",
+        ),  # overlap: the union is redacted
+        ("password=p4ss,w0rd!", {}, "w0rd"),
+        ("DB_PASSWORD=abc;def123", {}, "def123"),
+        ("ab1!x", {"key": "password"}, "ab1!x"),  # short cell under a secret key
+        (
+            "line1abc\nline2xyz",
+            {"key": "password"},
+            "line2xyz",
+        ),  # multi-line credential
+        ("John Smith", {"key": "customer_name"}, "Smith"),
+        (DSN.format("ab/cd123"), {}, "ab/cd123"),  # '/' in a DSN password
+    ],
+)
+def test_review_leaks_are_closed(text, kwargs, leak):
+    assert leak not in redact(text, **kwargs)[0]
+
+
+def test_url_with_port_and_later_at_sign_is_not_a_password():
+    url = "https://example.com:8080/users?ref=docs"
+    assert redact(url)[0] == url
+
+
+def test_batch_rejects_mismatched_keys():
+    with pytest.raises(ValueError):
+        redact_batch(["a@example.com", "b@example.com"], ["email"])
+
+
+def test_redact_json_redacts_keys_floats_and_keeps_colliding_keys():
+    out = redact_json(
+        {
+            "jane@example.org": 1,
+            "joe@example.org": 2,
+            "phone": 4155552671.0,
+            "ratio": 0.5,
+        }
+    )
+    assert out == {"[EMAIL]": 1, "[EMAIL] (2)": 2, "phone": "[PHONE]", "ratio": 0.5}

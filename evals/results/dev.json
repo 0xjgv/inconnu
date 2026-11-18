@@ -573,10 +573,10 @@
    "WORK_OF_ART": 0.0
   },
   "predicted": {
-   "CARDINAL": 1419,
-   "DATE": 1773,
+   "CARDINAL": 1430,
+   "DATE": 1764,
    "EMAIL": 347,
-   "EVENT": 4,
+   "EVENT": 5,
    "FAC": 10,
    "GPE": 128,
    "IBAN": 150,
@@ -591,8 +591,8 @@
    "PHONE": 409,
    "PRODUCT": 58,
    "QUANTITY": 15,
-   "TIME": 25,
-   "WORK_OF_ART": 266
+   "TIME": 24,
+   "WORK_OF_ART": 269
   },
   "frr": {
    "neg:base64-in-code": 0.36,
@@ -748,27 +748,27 @@
   }
  },
  "baseline_seconds": {
-  "inconnu-0.1.1": 6.6269943750230595,
-  "spacy-sm-person": 11.53636575001292
+  "inconnu-0.1.1": 9.291281417012215,
+  "spacy-sm-person": 17.36523166601546
  },
  "latency": {
   "python": "3.14.10",
   "machine": "arm64",
   "cell_us": {
-   "p50": 13.3,
-   "p99": 101.3,
-   "max": 250.2,
+   "p50": 19.9,
+   "p99": 147.3,
+   "max": 367.7,
    "n": 7238
   },
   "per_kb_us": {
-   "p50": 406.0,
-   "p99": 1133.6,
+   "p50": 613.0,
+   "p99": 2454.6,
    "n": 2163
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.2,
-   "cells_per_s": 50018,
-   "mb_per_s": 2.2
+   "seconds_median_of_5": 0.27,
+   "cells_per_s": 37065,
+   "mb_per_s": 1.63
   }
  }
 }

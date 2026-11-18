@@ -47,14 +47,14 @@ SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
 | SECRET:basic-auth | 35 | 1.000 |
 | SECRET:bearer | 40 | 1.000 |
 | SECRET:discord-webhook | 50 | 1.000 |
-| SECRET:entropy | 271 | 0.919 |
+| SECRET:entropy | 272 | 0.919 |
 | SECRET:generic | 222 | 1.000 |
 | SECRET:github-token | 50 | 1.000 |
 | SECRET:gitlab-token | 50 | 1.000 |
 | SECRET:google-api-key | 50 | 1.000 |
 | SECRET:jwt | 50 | 1.000 |
 | SECRET:npm-token | 50 | 1.000 |
-| SECRET:openai-key | 50 | 1.000 |
+| SECRET:openai-key | 49 | 1.000 |
 | SECRET:password-hash | 50 | 1.000 |
 | SECRET:private-key | 20 | 1.000 |
 | SECRET:pypi-token | 50 | 1.000 |
@@ -95,7 +95,7 @@ inconnu FRR by detector: entropy 0.0045, luhn 0.0004, names 0.0043, phonenumbers
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7256): p50 15.5 µs, p99 147.0 µs, max 508.6 µs
-- per KB (texts >= 64 chars, n=2100): p50 444.5 µs, p99 1290.0 µs
-- 10k-cell batch: 0.231 s, 43350 cells/s, 1.94 MB/s
-- inconnu 0.1.1 on the same records: inconnu-0.1.1 0.77 ms/record, spacy-sm-person 1.53 ms/record
+- per cell (<200 chars, n=7256): p50 21.6 µs, p99 157.9 µs, max 446.2 µs
+- per KB (texts >= 64 chars, n=2100): p50 654.7 µs, p99 1904.3 µs
+- 10k-cell batch: 0.291 s, 34391 cells/s, 1.54 MB/s
+- inconnu 0.1.1 on the same records: inconnu-0.1.1 1.33 ms/record, spacy-sm-person 2.13 ms/record

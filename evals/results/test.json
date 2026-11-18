@@ -105,7 +105,7 @@
    "SECRET:basic-auth": 1.0,
    "SECRET:bearer": 1.0,
    "SECRET:discord-webhook": 1.0,
-   "SECRET:entropy": 0.9188,
+   "SECRET:entropy": 0.9191,
    "SECRET:generic": 1.0,
    "SECRET:github-token": 1.0,
    "SECRET:gitlab-token": 1.0,
@@ -135,14 +135,14 @@
    "SECRET:basic-auth": 35,
    "SECRET:bearer": 40,
    "SECRET:discord-webhook": 50,
-   "SECRET:entropy": 271,
+   "SECRET:entropy": 272,
    "SECRET:generic": 222,
    "SECRET:github-token": 50,
    "SECRET:gitlab-token": 50,
    "SECRET:google-api-key": 50,
    "SECRET:jwt": 50,
    "SECRET:npm-token": 50,
-   "SECRET:openai-key": 50,
+   "SECRET:openai-key": 49,
    "SECRET:password-hash": 50,
    "SECRET:private-key": 20,
    "SECRET:pypi-token": 50,
@@ -572,10 +572,10 @@
    "WORK_OF_ART": 0.0
   },
   "predicted": {
-   "CARDINAL": 1353,
-   "DATE": 1717,
+   "CARDINAL": 1354,
+   "DATE": 1719,
    "EMAIL": 347,
-   "EVENT": 7,
+   "EVENT": 8,
    "FAC": 4,
    "GPE": 136,
    "IBAN": 151,
@@ -589,8 +589,8 @@
    "PHONE": 427,
    "PRODUCT": 51,
    "QUANTITY": 13,
-   "TIME": 26,
-   "WORK_OF_ART": 266
+   "TIME": 15,
+   "WORK_OF_ART": 265
   },
   "frr": {
    "neg:base64-in-code": 0.28,
@@ -746,27 +746,27 @@
   }
  },
  "baseline_seconds": {
-  "inconnu-0.1.1": 6.011228791961912,
-  "spacy-sm-person": 11.99628920800751
+  "inconnu-0.1.1": 10.458757624961436,
+  "spacy-sm-person": 16.743446499982383
  },
  "latency": {
   "python": "3.14.10",
   "machine": "arm64",
   "cell_us": {
-   "p50": 15.5,
-   "p99": 147.0,
-   "max": 508.6,
+   "p50": 21.6,
+   "p99": 157.9,
+   "max": 446.2,
    "n": 7256
   },
   "per_kb_us": {
-   "p50": 444.5,
-   "p99": 1290.0,
+   "p50": 654.7,
+   "p99": 1904.3,
    "n": 2100
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.231,
-   "cells_per_s": 43350,
-   "mb_per_s": 1.94
+   "seconds_median_of_5": 0.291,
+   "cells_per_s": 34391,
+   "mb_per_s": 1.54
   }
  }
 }

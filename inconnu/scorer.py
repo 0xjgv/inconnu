@@ -13,7 +13,8 @@ import re
 import time
 import urllib.request
 
-from .entropy import shannon
+from .entropy import KEY_BEFORE, shannon
+from .person import wordlist
 
 PROVIDERS = {
     "typesafe": ("https://api.typesafe.ai/v1/systemone", "TYPESAFE_API_KEY"),
@@ -32,11 +33,24 @@ QUESTION = (
     "code symbol, placeholder or configuration value."
 )
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,63}")
-KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]{0,63})[\"']?\s*(?::=|=>|[:=])\s*[\"'\x60]?$")
 
 
 def mask(value: str) -> str:
-    return re.sub(r"[a-z]", "a", re.sub(r"[A-Z]", "A", re.sub(r"\d", "9", value)))
+    """Letters (any script) become A or a, digits 9; spaces and punctuation stay."""
+    return "".join(
+        "9" if c.isdigit() else "A" if c.isupper() else "a" if c.isalpha() else c
+        for c in value
+    )
+
+
+def _personal(name: str) -> bool:
+    """A key like jane_smith_notes could itself name a person: leave it out of the payload."""
+    parts = re.split(r"[_.-]|(?<=[a-z])(?=[A-Z])", name)
+    return any(
+        p.lower() in wordlist("first_names.txt") | wordlist("surnames.txt")
+        and p.lower() not in wordlist("code_words.txt")
+        for p in parts
+    )
 
 
 def describe(text: str, start: int, end: int, kind: str, key: str | None) -> str:
@@ -70,13 +84,16 @@ def describe(text: str, start: int, end: int, kind: str, key: str | None) -> str
         ("Key name in the text", named and named.group(1)),
         ("Column or JSON key", key),
     ):
-        if name and IDENTIFIER.fullmatch(name):
+        if name and IDENTIFIER.fullmatch(name) and not _personal(name):
             lines.append(f"{label}: {name}")
     return "\n".join(lines)
 
 
 class Scorer:
-    """Decide uncertain candidates with a System One noul question; off unless passed to redact()."""
+    """Decide uncertain candidates with a System One noul question; off unless passed to redact().
+
+    budget_s bounds each redact_batch() call; max_calls bounds the instance's lifetime (answers are cached by
+    description, so repeated shapes cost one call)."""
 
     def __init__(
         self,

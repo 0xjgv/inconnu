@@ -86,7 +86,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>[^\s/]{1,128})@[\w.-]+",
+        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@[\w.-]+",
         0.97,
         ("://",),
     ),
@@ -126,14 +126,14 @@ SECRET_KEY = re.compile(
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]*?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>[^\"\n]{1,256})\"|'(?P<sq>[^'\n]{1,256})'|\x60(?P<bq>[^\x60\n]{1,256})\x60|(?P<bare>[^\s\"'\x60,;)}\]<>]{1,256}))"
+    r"(?:\"(?P<dq>[^\"\n]{1,4096})\"|'(?P<sq>[^'\n]{1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;](?=[^\s\"'\x60])){1,256}))"
 )
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
     r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
 CODE_VALUE = re.compile(
-    r"[()\[\]]|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^\w+\.\w+"
+    r"[()\[\]]|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
 )
 
 
@@ -148,9 +148,11 @@ def secret_key(key: str | None) -> bool:
 def value_confidence(value: str, quoted: bool) -> float:
     """How likely the value of a secret-named key is a real secret rather than code or a placeholder."""
     value = value.strip()
-    if PLACEHOLDER.match(value) or len(value) < 4:
+    if PLACEHOLDER.match(value):
         return 0.0
     if quoted:
+        if len(value) < 4:
+            return 0.5  # a short literal under a secret name (a PIN, "abc"): uncertain
         return 0.9 if len(value) >= 8 or not value.isalpha() else 0.7
     if CODE_VALUE.search(value):
         return 0.0  # os.environ[...], get_secret(), settings.TOKEN
@@ -160,7 +162,7 @@ def value_confidence(value: str, quoted: bool) -> float:
         if secret_key(value) or value.lower() in wordlist("code_words.txt"):
             return 0.0  # passwd = passwd + ..., id-token: write: a variable or keyword, not a literal
         return 0.5  # a bare word: PASSWORD=hunter in .env, or password = user_input in code
-    return 0.9
+    return 0.9 if len(value) >= 4 else 0.5
 
 
 def find(text: str, key: str | None):
@@ -170,6 +172,8 @@ def find(text: str, key: str | None):
             continue
         group = "s" if "s" in pattern.groupindex else 0
         for m in pattern.finditer(text):
+            if kind == "url-password" and re.match(r"\d+/", m.group("s")):
+                continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
     lower = text.lower()
@@ -183,6 +187,6 @@ def find(text: str, key: str | None):
     if secret_key(key):
         value = text.strip()
         conf = value_confidence(value, quoted=True)
-        if conf and "\n" not in value:
+        if conf:
             start = text.index(value)
             yield start, start + len(value), "SECRET:generic", conf, "keyword"

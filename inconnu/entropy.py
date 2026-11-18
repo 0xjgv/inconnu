@@ -33,7 +33,7 @@ NEAR_SECRET = re.compile(
 ID_KEY = re.compile(
     r"(?i)(?:^|[^a-z])(?:id|ids|uuid|guid|hash|digest|checksum|etag|fingerprint|sha\d*|version|trace|span)$"
 )
-KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]{0,63})[\"']?\s*[:=]\s*[\"']?$")
+KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]{0,63})[\"']?\s*(?::=|=>|[:=])\s*[\"'\x60]?$")
 MAX_LEN = 200  # longer unlabeled tokens are encoded blobs, not credentials
 MIN_RANDOMNESS, MAX_WORDINESS, MIN_MIXING = 0.83, 0.45, 0.45
 

@@ -9,17 +9,25 @@ from .scorer import Scorer, describe
 # and in between it is redacted unless a Scorer says it may stay (fail closed).
 LOW, HIGH = 0.5, 0.8
 DETECTORS = (pii.find, credentials.find, person.find, entropy.find)
-MIN_LENGTH = 6  # shorter cells cannot hold any detected type
+MIN_LENGTH = 6  # shorter unkeyed cells cannot hold any detected type
 
 
 def _spans(text: str, key: str | None) -> list[tuple]:
-    if len(text) < MIN_LENGTH:
+    if len(text) < MIN_LENGTH and not key:
         return []
     candidates = [c for find in DETECTORS for c in find(text, key) if c[3] >= LOW]
     kept: list[tuple] = []
     for c in sorted(candidates, key=lambda c: (-c[3], c[0] - c[1], c[0])):
-        if all(c[1] <= k[0] or c[0] >= k[1] for k in kept):
+        overlapping = [k for k in kept if c[0] < k[1] and k[0] < c[1]]
+        if not overlapping:
             kept.append(c)
+        elif not all(k[0] <= c[0] and c[1] <= k[1] for k in overlapping):
+            # c sticks out of a more confident span: redact the union, so no part of either leaks.
+            group = [*overlapping, c]
+            longest = max(group, key=lambda s: s[1] - s[0])
+            start, end = min(s[0] for s in group), max(s[1] for s in group)
+            kept = [k for k in kept if k not in overlapping]
+            kept.append((start, end, longest[2], max(s[3] for s in group), longest[4]))
     return sorted(kept)
 
 
@@ -41,7 +49,7 @@ def redact_batch(
     detector, never the value.
     """
     keys = keys or [None] * len(cells)
-    found = [_spans(text, key) for text, key in zip(cells, keys)]
+    found = [_spans(text, key) for text, key in zip(cells, keys, strict=True)]
     if scorer is not None:
         band = [
             (i, j)
@@ -84,9 +92,10 @@ def redact(
 
 
 def redact_json(data, scorer: Scorer | None = None):
-    """Redact every string (and integer) in a JSON value, using dict keys and result column names as context.
+    """Redact every string, integer and dict key in a JSON value; dict keys and column names give context.
 
     A dict with "rows" (lists) and "cols" or "columns" (names or {"name": ...}) gives each row cell its column name.
+    Two keys that redact to the same placeholder become "[EMAIL]" and "[EMAIL] (2)".
     """
     cells: list[str] = []
     keys: list[str | None] = []
@@ -103,7 +112,7 @@ def redact_json(data, scorer: Scorer | None = None):
             out = {}
             for k, v in node.items():
                 if k == "rows" and names:
-                    out[k] = [
+                    value = [
                         [
                             walk(cell, name if isinstance(name, str) else key, visit)
                             for cell, name in zip(row, names)
@@ -114,18 +123,30 @@ def redact_json(data, scorer: Scorer | None = None):
                         for row in v
                     ]
                 else:
-                    out[k] = walk(v, k if isinstance(k, str) else key, visit)
+                    value = walk(v, k if isinstance(k, str) else key, visit)
+                name = base = visit(k, None) if isinstance(k, str) else k
+                n = 1
+                while name in out:
+                    n += 1
+                    name = f"{base} ({n})"
+                out[name] = value
             return out
         if isinstance(node, list):
             return [walk(v, key, visit) for v in node]
-        if isinstance(node, str) or (
-            isinstance(node, int) and not isinstance(node, bool)
-        ):
+        if isinstance(node, (str, int, float)) and not isinstance(node, bool):
             return visit(node, key)
         return node
 
+    def text(node) -> str:
+        # An integral float (4155552671.0 from a database driver) is checked as the integer it holds.
+        return (
+            str(int(node))
+            if isinstance(node, float) and node.is_integer()
+            else str(node)
+        )
+
     def collect(node, key):
-        cells.append(str(node))
+        cells.append(text(node))
         keys.append(key)
         return node
 

@@ -28,7 +28,7 @@ NAME_KEY = re.compile(
     r"|^(?:author|assignee|reporter|owner|contact)$"
 )
 COMPANY_KEY = re.compile(
-    r"(?i)(?:company|organi[sz]ation|^org|customer|tenant|vendor|employer|account_name)"
+    r"(?i)^(?:company|organi[sz]ation|org|tenant|vendor|employer)(?:_?name)?$"
 )
 # Next words that make a first name part of a company, product or UI label (from the eval negatives).
 NOT_SURNAME = frozenset(

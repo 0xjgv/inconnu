@@ -85,12 +85,10 @@ def find(text: str, key: str | None):
             r"\d+x\.", domain
         ):  # git@host remotes, retina assets like icon@2x.png
             continue
-        if (
-            m.start()
-            and text[m.start() - 1] == ":"
-            and not text[: m.start()].endswith("mailto:")
-        ):
-            continue  # user:pass@host belongs to the URL credential rule
+        token_start = max(text.rfind(c, 0, m.start()) for c in " \t\n") + 1
+        authority = text.rfind("://", token_start, m.start())
+        if authority >= 0 and "/" not in text[authority + 3 : m.start()]:
+            continue  # scheme://user:pass@host: the URL credential rule owns it
         yield m.start(), m.end(), "EMAIL", 0.95, "regex"
     for m in IPV4.finditer(text) if digits >= 4 and "." in text else ():
         conf = _ipv4(m.group())

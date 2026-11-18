@@ -88,3 +88,13 @@ def test_scorer_bad_answer_fails_closed(monkeypatch, keys):
 
 def test_certain_findings_never_reach_scorer(no_network, keys):
     assert redact("jane.doe@example.org", scorer=Scorer())[0] == "[EMAIL]"
+
+
+def test_description_masks_every_letter_and_drops_personal_keys():
+    from inconnu.scorer import describe
+
+    text = "Łukasz Żółćowski"
+    description = describe(text, 0, len(text), "PERSON", "jane_smith_notes")
+    assert "Shape (A upper, a lower, 9 digit): Aaaaaa Aaaaaaaaa" in description
+    assert not any(ch in description for ch in "ŁŻółć")
+    assert "jane_smith" not in description

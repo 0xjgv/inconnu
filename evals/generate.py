@@ -16,6 +16,7 @@ import random
 import string
 import sysconfig
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from faker import Faker
@@ -57,6 +58,10 @@ class Gen:
 
     def s(self, alphabet: str, n: int) -> str:
         return "".join(self.r.choice(alphabet) for _ in range(n))
+
+    def when(self) -> datetime:
+        """Faker's own dates end at now, which would make the data differ from day to day."""
+        return self.en.date_time_between(datetime(2015, 1, 1), datetime(2026, 1, 1))
 
     def faker(self) -> Faker:
         return self.fakers[self.r.choice(LOCALES)]
@@ -607,13 +612,13 @@ class Gen:
                 "neg:timestamp",
                 r.choice(
                     [
-                        en.iso8601(),
-                        en.date_time().isoformat() + "Z",
+                        self.when().isoformat(),
+                        self.when().isoformat() + "Z",
                         str(r.randint(16 * 10**8, 18 * 10**8)),
                         str(r.randint(16 * 10**11, 18 * 10**11)),
-                        en.date_time().strftime("%a, %d %b %Y %H:%M:%S GMT"),
-                        en.date_time().strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
-                        en.date(),
+                        self.when().strftime("%a, %d %b %Y %H:%M:%S GMT"),
+                        self.when().strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
+                        self.when().date().isoformat(),
                     ]
                 ),
             )
@@ -710,7 +715,7 @@ class Gen:
                             ["main", "develop", "feature/" + self.identifier()]
                         ),
                         "git_sha": s(HEXD, 40),
-                        "created_at": en.iso8601() + "Z",
+                        "created_at": self.when().isoformat() + "Z",
                         "status": r.choice(["open", "fixed", "accepted_risk"]),
                         "urgency": r.choice(["LO", "ME", "HI", "CR"]),
                         "file": self.path(),
@@ -755,7 +760,7 @@ class Gen:
                     [
                         f"GET /api/v1/issues?page={r.randint(1, 9)} 200 {r.randint(2, 900)}ms",
                         f"worker-{r.randint(1, 9)} processed job {s(HEXD, 24)} in {r.randint(10, 999)}ms",
-                        f"{en.iso8601()} WARN retrying request_id={uuid.UUID(int=r.getrandbits(128))} attempt={r.randint(1, 5)}",
+                        f"{self.when().isoformat()} WARN retrying request_id={uuid.UUID(int=r.getrandbits(128))} attempt={r.randint(1, 5)}",
                         f"listening on 0.0.0.0:{r.randint(1000, 9999)}",
                         f"connected to 127.0.0.1:{r.randint(1000, 9999)}",
                     ]
