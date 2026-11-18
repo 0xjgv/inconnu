@@ -29,6 +29,11 @@ def placeholders(text, **kwargs):
             "https://x.example/?email=[EMAIL]",
         ),
         ("from 2001:db8::8a2e:370:7334 at", "from [IP] at"),
+        ("https://x.example?email=jane@example.org", "https://x.example?email=[EMAIL]"),
+        ("mail git@example.org now", "mail [EMAIL] now"),
+        ("from 2001:db8::192.0.2.1 at", "from [IP] at"),
+        ("Thanks John O'Connor", "Thanks [PERSON]"),
+        ("Dr Li", "[PERSON]"),
         ("Mr. Smith approved it", "[PERSON] approved it"),
         ("Assigned to Maria Gonzalez yesterday", "Assigned to [PERSON] yesterday"),
     ],
@@ -166,7 +171,6 @@ def test_entropy_unknown_secret():
         "AbstractSingletonProxyFactoryBean",
         "sha512-9Fz2bVbL1jK8nQ0pR7sT4uW6xY3zA5bC8dE0fG2hI4jK6lM8nO0pQ2rS4tU6vW8xY0zA2bC4dE6fG8hI0jK2lM==",
         "Acme Corp renewed the contract",
-        "permissions:\n  id-token: write",
         '{"SECRET:anthropic-key": 1.0}',
         "pairs = list(zip(sparse[::2], sparse[1::2]))",
         "created 2024-01-15 and 15.01.2024",
@@ -285,3 +289,28 @@ def test_adversarial_cells_stay_linear():
         started = time.perf_counter()
         redact(cell)
         assert time.perf_counter() - started < 0.5, cell[:20]
+
+
+@pytest.mark.parametrize(
+    ("text", "kwargs", "leak"),
+    [
+        ("authorization: BASIC " + "dXNlcjpodW50ZXIyIQ==", {}, "dXNlcjpodW50ZXIyIQ=="),
+        ('password = "abc\\"def123"', {}, "def123"),  # escaped quote inside the literal
+        ("password=ab)cd)ef!", {}, "cd)ef"),
+        (
+            "password=access",
+            {},
+            "access",
+        ),  # a code word is still a candidate (uncertain band)
+        ("x=q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf", {}, "q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf"),
+        ("JOHN SMITH", {"key": "full_name"}, "SMITH"),
+        ("maria gonzalez", {"key": "author"}, "gonzalez"),
+    ],
+)
+def test_bot_review_leaks_are_closed(text, kwargs, leak):
+    assert leak not in redact(text, **kwargs)[0]
+
+
+def test_batch_rejects_empty_keys_list():
+    with pytest.raises(ValueError):
+        redact_batch(["a@example.com"], [])

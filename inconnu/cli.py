@@ -1,6 +1,6 @@
 """inconnu: redact stdin to stdout. Text by default; --json redacts every string in a JSON document.
 
-Exit 0 on success, 2 on unreadable input, 1 on any other error. On failure nothing goes to stdout,
+Exit 0 on success, 2 when --json input is not JSON, 1 on any other error (unreadable input, a failed write). On failure nothing goes to stdout,
 so a caller that passes stdout on can never leak the unredacted input.
 """
 
@@ -42,12 +42,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 2
             output = (
-                json.dumps(redact_json(document, scorer), ensure_ascii=False) + "\n"
+                json.dumps(
+                    redact_json(document, scorer), ensure_ascii=False, allow_nan=False
+                )
+                + "\n"
             )
         else:
             output = redact(data, scorer=scorer)[0]
+        sys.stdout.write(output)
+        sys.stdout.flush()
     except Exception as exc:  # noqa: BLE001 fail closed: report the type only, never the input
         print(f"inconnu: redaction failed ({type(exc).__name__})", file=sys.stderr)
         return 1
-    sys.stdout.write(output)
     return 0

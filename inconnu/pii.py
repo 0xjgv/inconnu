@@ -13,6 +13,8 @@ from phonenumbers import (
     parse,
 )
 
+from .credentials import URL_PASSWORD
+
 EMAIL = re.compile(
     r"(?<![\w.%+/-])[\w.%+-]{1,64}@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}\b"
 )
@@ -28,7 +30,7 @@ CARD = re.compile(r"(?<![\w.+-])\d(?:[ -]?\d){11,18}(?![\w-]|\.\d)")
 SSN = re.compile(r"(?<![\d-])\d{3}-\d{2}-\d{4}(?![\d-])")
 IPV4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w]|\.\d)")
 IPV6 = re.compile(
-    r"(?<![\w:.])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?:%\w+)?(?![\w:])"
+    r"(?<![\w:.])(?:[0-9A-Fa-f]{0,4}:){2,7}(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9A-Fa-f]{0,4})(?:%\w+)?(?![\w:.])"
 )
 DIGITS = re.compile(r"\D")
 DATE = re.compile(r"\d{4}([-./ ])\d{1,2}\1\d{1,2}|\d{1,2}([-./ ])\d{1,2}\2\d{2,4}")
@@ -79,15 +81,15 @@ CARD_PREFIXES = (
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     digits = len(DIGITS.sub("", text))
+    url_passwords = (
+        [u.span("s") for u in URL_PASSWORD.finditer(text)] if "://" in text else []
+    )
     for m in EMAIL.finditer(text) if "@" in text else ():
         local, domain = m.group().split("@", 1)
-        if local == "git" or re.match(
-            r"\d+x\.", domain
-        ):  # git@host remotes, retina assets like icon@2x.png
+        remote = local == "git" and text[m.end() : m.end() + 1] == ":"
+        if remote or re.match(r"\d+x\.", domain):  # git@host:org/repo, icon@2x.png
             continue
-        token_start = max(text.rfind(c, 0, m.start()) for c in " \t\n") + 1
-        authority = text.rfind("://", token_start, m.start())
-        if authority >= 0 and "/" not in text[authority + 3 : m.start()]:
+        if any(s < m.end() and m.start() < e for s, e in url_passwords):
             continue  # scheme://user:pass@host: the URL credential rule owns it
         yield m.start(), m.end(), "EMAIL", 0.95, "regex"
     for m in IPV4.finditer(text) if digits >= 4 and "." in text else ():

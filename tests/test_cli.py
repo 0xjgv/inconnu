@@ -49,3 +49,9 @@ def test_scorer_flag_without_keys_redacts_the_band():
     result = run(["--scorer"], "PASSWORD=hunter\n", env=env)
     assert result.returncode == 0
     assert result.stdout == "PASSWORD=[SECRET:generic]\n"
+
+
+def test_json_mode_rejects_nan_output():
+    result = run(["--json"], '{"x": NaN}')
+    assert result.returncode == 1
+    assert result.stdout == ""

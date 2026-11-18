@@ -140,9 +140,14 @@ class Scorer:
             if not key or timeout <= 0:
                 continue
             try:
-                return _ask(url, key, provider, model, description, timeout)
+                value = _ask(url, key, provider, model, description, timeout)
             except Exception:  # noqa: BLE001, S112 try the next provider; the caller fails closed
                 continue
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    "answer arrived after the budget"
+                )  # a late answer cannot clear
+            return value
         raise RuntimeError("no scoring provider answered")
 
 

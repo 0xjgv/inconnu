@@ -15,7 +15,10 @@ from functools import cache
 from importlib.resources import files
 
 UPPER, LOWER = "A-ZÀ-ÖØ-ÞĀĆČĎĘĚŁŃŇŐŘŚŠŤŮŰŹŻŽ", "a-zß-öø-ÿāćčďęěłńňőřśšťůűźżž"
-WORD = re.compile(rf"[{UPPER}][{LOWER}]+(?:['’-][{UPPER}]?[{LOWER}]+)?")
+WORD = re.compile(
+    rf"[{UPPER}](?:[{LOWER}]+(?:['’-][{UPPER}]?[{LOWER}]+)?|['’][{UPPER}][{LOWER}]+)"
+)  # Maria, Smith-Jones, O'Connor
+ANY_CASE_WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)?")
 # Between first and last name: spaces, a middle initial, or a lowercase particle (van der, da, de la, bin).
 GAP = re.compile(
     rf"\s+(?:[{UPPER}]\.\s+|(?:(?:van|von|de|da|del|della|di|dos|das|du|le|la|ter|ten|der|den|bin|ibn|al)\s+){{1,2}})?"
@@ -68,7 +71,9 @@ def find(text: str, key: str | None):
         return
     if key and NAME_KEY.match(key):
         stripped = text.strip()
-        words = WORD.findall(stripped)
+        words = ANY_CASE_WORD.findall(
+            stripped
+        )  # name columns also hold JOHN SMITH and john smith
         named = (
             key.lower() != "name"
         )  # a bare "name" column also holds projects, rules and companies

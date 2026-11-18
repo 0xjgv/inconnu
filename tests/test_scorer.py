@@ -107,3 +107,40 @@ def test_description_drops_secret_shaped_key_names():
     description = describe("PASSWORD=hunter", 9, 15, "SECRET:generic", token_key)
     assert token_key not in description
     assert "Key name in the text: PASSWORD" in description
+
+
+def test_late_answer_fails_closed(monkeypatch, keys):
+    import inconnu.scorer as scorer_module
+
+    clock = iter([0.0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])
+    monkeypatch.setattr(scorer_module.time, "monotonic", lambda: next(clock, 100.0))
+
+    def slow_urlopen(request, timeout):
+        questions = json.loads(request.data)["questions"]
+        return Reply(
+            {"answers": {q: {"type": "noul", "noul": 0.01} for q in questions}}
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", slow_urlopen)
+    assert (
+        redact(BAND_TEXT, scorer=Scorer(budget_s=8))[0] == "PASSWORD=[SECRET:generic]"
+    )
+
+
+def test_cli_scorer_flag_uses_the_scorer(monkeypatch, keys, capsys):
+    import io
+
+    from inconnu import cli
+
+    def fake_urlopen(request, timeout):
+        questions = json.loads(request.data)["questions"]
+        return Reply(
+            {"answers": {q: {"type": "noul", "noul": 0.01} for q in questions}}
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr("sys.stdin", io.StringIO(BAND_TEXT))
+    assert cli.main(["--scorer"]) == 0
+    assert (
+        capsys.readouterr().out == BAND_TEXT
+    )  # cleared by the scorer, so the scorer ran

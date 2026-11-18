@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import re
 
-from .person import wordlist
-
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
 RULES = [
@@ -90,18 +88,19 @@ RULES = [
         0.97,
         ("://",),
     ),
-    ("bearer", r"\b[Bb]earer\s+(?P<s>[A-Za-z0-9._~+/-]{16,}=*)", 0.9, ("earer",)),
+    ("bearer", r"(?i:\bbearer)\s+(?P<s>[A-Za-z0-9._~+/-]{16,}=*)", 0.9, ("earer",)),
     (
         "basic-auth",
-        r"\bBasic\s+(?P<s>[A-Za-z0-9+/]{12,}={0,2})(?![\w+/=])",
+        r"(?i:\bbasic)\s+(?P<s>[A-Za-z0-9+/]{12,}={0,2})(?![\w+/=])",
         0.85,
         ("Basic",),
     ),
 ]
 RULES = [
-    (kind, re.compile(pattern), conf, literals)
+    (kind, re.compile(pattern), conf, tuple(lit.lower() for lit in literals))
     for kind, pattern, conf, literals in RULES
 ]
+URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -126,14 +125,14 @@ SECRET_KEY = re.compile(
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>[^\"\n]{1,4096})\"|'(?P<sq>[^'\n]{1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;](?=[^\s\"'\x60])){1,256}))"
+    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
 )
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
     r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
 CODE_VALUE = re.compile(
-    r"[()\[\]]|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
+    r"\w\(|\w\[|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
 )
 
 
@@ -159,16 +158,17 @@ def value_confidence(value: str, quoted: bool) -> float:
     if value.isdigit():
         return 0.6 if len(value) >= 6 else 0.0
     if re.fullmatch(r"[A-Za-z_]+", value):
-        if secret_key(value) or value.lower() in wordlist("code_words.txt"):
-            return 0.0  # passwd = passwd + ..., id-token: write: a variable or keyword, not a literal
-        return 0.5  # a bare word: PASSWORD=hunter in .env, or password = user_input in code
+        if secret_key(value):
+            return 0.0  # passwd = passwd + ...: the variable itself, not a literal
+        return 0.5  # a bare word (PASSWORD=hunter, id-token: write, password=access): uncertain, redacted unless a Scorer clears it
     return 0.9 if len(value) >= 4 else 0.5
 
 
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
+    lower = text.lower()
     for kind, pattern, conf, literals in RULES:
-        if not any(literal in text for literal in literals):
+        if not any(literal in lower for literal in literals):
             continue
         group = "s" if "s" in pattern.groupindex else 0
         for m in pattern.finditer(text):
@@ -176,7 +176,6 @@ def find(text: str, key: str | None):
                 continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
-    lower = text.lower()
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):

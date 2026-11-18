@@ -14,7 +14,7 @@ from collections import Counter
 
 from .credentials import CAMEL, KEYWORD, secret_key
 
-TOKEN = re.compile(r"(?<![\w+/=-])[A-Za-z0-9+/_-]{20,}={0,2}(?![\w+/=-])")
+TOKEN = re.compile(r"(?<![\w+/-])[A-Za-z0-9+/_-]{20,}={0,2}(?![\w+/=-])")
 UUID = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )

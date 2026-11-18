@@ -1,4 +1,6 @@
 {
+ "data_sha256": "ee17818836311f876d7819c94a134e9f2aa4dd8f6d2fe7936dcfc13ca403de78",
+ "python": "3.14.10",
  "inconnu_version": "0.2.0",
  "phonenumbers_version": "9.0.43",
  "records": 7854,
@@ -17,7 +19,7 @@
    "bearer": 1.0,
    "discord-webhook": 1.0,
    "entropy": 0.9708,
-   "generic": 0.9833,
+   "generic": 0.9792,
    "github-token": 1.0,
    "gitlab-token": 1.0,
    "google-api-key": 1.0,
@@ -47,7 +49,7 @@
    "bearer": 1.0,
    "discord-webhook": 1.0,
    "entropy": 0.9708,
-   "generic": 0.9667,
+   "generic": 0.9792,
    "github-token": 1.0,
    "gitlab-token": 1.0,
    "google-api-key": 1.0,
@@ -105,8 +107,8 @@
    "SECRET:basic-auth": 1.0,
    "SECRET:bearer": 1.0,
    "SECRET:discord-webhook": 1.0,
-   "SECRET:entropy": 0.9202,
-   "SECRET:generic": 1.0,
+   "SECRET:entropy": 0.9007,
+   "SECRET:generic": 0.9754,
    "SECRET:github-token": 1.0,
    "SECRET:gitlab-token": 1.0,
    "SECRET:google-api-key": 1.0,
@@ -135,8 +137,8 @@
    "SECRET:basic-auth": 28,
    "SECRET:bearer": 40,
    "SECRET:discord-webhook": 50,
-   "SECRET:entropy": 263,
-   "SECRET:generic": 242,
+   "SECRET:entropy": 272,
+   "SECRET:generic": 244,
    "SECRET:github-token": 50,
    "SECRET:gitlab-token": 50,
    "SECRET:google-api-key": 50,
@@ -165,8 +167,8 @@
    "SECRET:basic-auth": 28,
    "SECRET:bearer": 40,
    "SECRET:discord-webhook": 50,
-   "SECRET:entropy": 242,
-   "SECRET:generic": 242,
+   "SECRET:entropy": 245,
+   "SECRET:generic": 238,
    "SECRET:github-token": 50,
    "SECRET:gitlab-token": 50,
    "SECRET:google-api-key": 50,
@@ -185,7 +187,7 @@
   },
   "frr": {
    "neg:base64-in-code": 0.0,
-   "neg:code": 0.0,
+   "neg:code": 0.03,
    "neg:company": 0.11,
    "neg:corgea-issue-field": 0.0,
    "neg:corgea-issue-json": 0.0,
@@ -196,7 +198,7 @@
    "neg:numeric-id": 0.025,
    "neg:path": 0.0,
    "neg:prose": 0.005,
-   "neg:random-id": 0.105,
+   "neg:random-id": 0.135,
    "neg:real-stdlib-line": 0.005,
    "neg:real-uv-lock-line": 0.0,
    "neg:scan-row": 0.0,
@@ -206,10 +208,11 @@
    "neg:version": 0.0,
    "neg:vuln-id": 0.0
   },
-  "frr_all": 0.0111,
+  "frr_all": 0.0135,
   "frr_by_detector": {
-   "entropy": 0.0043,
+   "entropy": 0.0055,
    "ipaddress": 0.0004,
+   "keyword": 0.0012,
    "luhn": 0.001,
    "names": 0.0047,
    "regex": 0.0006
@@ -829,20 +832,20 @@
   "python": "3.14.10",
   "machine": "arm64",
   "cell_us": {
-   "p50": 12.2,
-   "p99": 86.5,
-   "max": 198.8,
+   "p50": 12.5,
+   "p99": 88.1,
+   "max": 205.8,
    "n": 7238
   },
   "per_kb_us": {
-   "p50": 375.1,
-   "p99": 1051.3,
+   "p50": 390.7,
+   "p99": 1103.9,
    "n": 2163
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.176,
-   "cells_per_s": 56726,
-   "mb_per_s": 2.5
+   "seconds_median_of_5": 0.132,
+   "cells_per_s": 75681,
+   "mb_per_s": 3.11
   }
  }
 }

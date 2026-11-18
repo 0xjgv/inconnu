@@ -8,7 +8,7 @@
 | CARD | 150 | 0.986 | 0.973 | 0.980 | 0.973 | - | 0.000 |
 | SSN | 150 | 1.000 | 1.000 | 1.000 | 1.000 | - | 0.000 |
 | IP | 150 | 1.000 | 1.000 | 1.000 | 1.000 | - | 0.000 |
-| PERSON | 400 | 0.933 | 0.762 | 0.839 | 0.750 | 0.395 | 0.725 |
+| PERSON | 400 | 0.933 | 0.765 | 0.841 | 0.752 | 0.395 | 0.725 |
 | PERSON (spaCy en_core_web_sm, raw) | 400 | 0.381 | 0.730 | 0.501 | 0.690 | | |
 | PHONE (regex only, no phonenumbers) | 300 | 1.000 | 0.497 | 0.664 | 0.487 | | |
 
@@ -22,7 +22,7 @@
 | bearer | 40 | 1.000 | 1.000 | 0.000 | 0.225 |
 | discord-webhook | 50 | 1.000 | 1.000 | 0.100 | 0.180 |
 | entropy | 240 | 0.954 | 0.954 | 0.075 | 0.304 |
-| generic | 240 | 0.988 | 0.983 | 0.196 | 0.342 |
+| generic | 240 | 0.988 | 0.988 | 0.196 | 0.342 |
 | github-token | 50 | 1.000 | 1.000 | 0.840 | 0.220 |
 | gitlab-token | 50 | 1.000 | 1.000 | 1.000 | 0.140 |
 | google-api-key | 50 | 1.000 | 1.000 | 0.280 | 0.200 |
@@ -38,7 +38,7 @@
 | stripe-key | 50 | 1.000 | 1.000 | 0.700 | 0.240 |
 | url-password | 40 | 1.000 | 1.000 | 0.775 | 0.150 |
 
-SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
+SECRET precision (all kinds): inconnu 0.976, detect-secrets 0.695
 
 | predicted secret kind | n | precision |
 |---|---|---|
@@ -47,8 +47,8 @@ SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
 | SECRET:basic-auth | 35 | 1.000 |
 | SECRET:bearer | 40 | 1.000 |
 | SECRET:discord-webhook | 50 | 1.000 |
-| SECRET:entropy | 272 | 0.919 |
-| SECRET:generic | 222 | 1.000 |
+| SECRET:entropy | 281 | 0.904 |
+| SECRET:generic | 224 | 0.973 |
 | SECRET:github-token | 50 | 1.000 |
 | SECRET:gitlab-token | 50 | 1.000 |
 | SECRET:google-api-key | 50 | 1.000 |
@@ -69,7 +69,7 @@ SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
 | category | inconnu | detect-secrets | 0.1.1 |
 |---|---|---|---|
 | neg:base64-in-code | 0.000 | 0.450 | 0.280 |
-| neg:code | 0.000 | 0.000 | 0.395 |
+| neg:code | 0.030 | 0.000 | 0.395 |
 | neg:company | 0.095 | 0.000 | 0.890 |
 | neg:corgea-issue-field | 0.000 | 0.000 | 0.418 |
 | neg:corgea-issue-json | 0.000 | 1.000 | 1.000 |
@@ -80,7 +80,7 @@ SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
 | neg:numeric-id | 0.010 | 0.000 | 0.970 |
 | neg:path | 0.000 | 0.000 | 0.075 |
 | neg:prose | 0.000 | 0.000 | 0.665 |
-| neg:random-id | 0.110 | 0.030 | 0.360 |
+| neg:random-id | 0.135 | 0.030 | 0.360 |
 | neg:real-stdlib-line | 0.003 | 0.000 | 0.269 |
 | neg:real-uv-lock-line | 0.000 | 0.000 | 0.884 |
 | neg:scan-row | 0.000 | 0.975 | 1.000 |
@@ -89,13 +89,13 @@ SECRET precision (all kinds): inconnu 0.984, detect-secrets 0.695
 | neg:uuid | 0.000 | 0.000 | 0.265 |
 | neg:version | 0.000 | 0.000 | 0.575 |
 | neg:vuln-id | 0.000 | 0.000 | 0.455 |
-| **all negatives** | 0.009 | 0.065 | 0.519 |
+| **all negatives** | 0.012 | 0.065 | 0.519 |
 
-inconnu FRR by detector: entropy 0.0045, luhn 0.0004, names 0.0043, phonenumbers 0.0002, regex 0.0002
+inconnu FRR by detector: entropy 0.0055, keyword 0.0012, luhn 0.0004, names 0.0043, phonenumbers 0.0002, regex 0.0002
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7256): p50 12.1 µs, p99 85.4 µs, max 204.7 µs
-- per KB (texts >= 64 chars, n=2100): p50 379.5 µs, p99 1092.2 µs
-- 10k-cell batch: 0.183 s, 54568 cells/s, 2.44 MB/s
+- per cell (<200 chars, n=7256): p50 12.6 µs, p99 89.5 µs, max 206.8 µs
+- per KB (texts >= 64 chars, n=2100): p50 395.2 µs, p99 1094.6 µs
+- 10k-cell batch: 0.133 s, 75041 cells/s, 3.09 MB/s
 - inconnu 0.1.1 on the same records: inconnu-0.1.1 1.33 ms/record, spacy-sm-person 2.13 ms/record

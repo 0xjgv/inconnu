@@ -81,7 +81,7 @@ redact(text, scorer=Scorer())  # or: INCONNU_SCORER=1 inconnu ...
 
 The scorer is off by default. It asks a System One `noul` question over the provider chain used by
 [s1r](https://github.com/0xjgv/s1r): TypeSafe Jev, then OpenRouter, then Respan (keys `TYPESAFE_API_KEY`,
-`OPENROUTER_API_KEY`, `RESPAN_API_KEY`), 8 s per request and an 8 s budget per batch. It fails closed: an error, a
+`OPENROUTER_API_KEY`, `RESPAN_API_KEY`), 8 s per request and an 8 s budget per batch; an answer that arrives after the budget is discarded (a read can block up to one request timeout). It fails closed: an error, a
 timeout, a missing key or a spent budget means redact. It never sends a value: only the type, length, character
 classes, entropy, a masked shape (`(999) 999-9999`, or the first four characters as `Aa9-` for secrets) and the key
 or column name.
@@ -103,16 +103,16 @@ Thresholds and allowlists were tuned on the dev split; the numbers below are the
 | CARD | 0.986 | 0.973 | - | 0.000 |
 | SSN | 1.000 | 1.000 | - | 0.000 |
 | IP | 1.000 | 1.000 | - | 0.000 |
-| PERSON | 0.933 | 0.762 | 0.395 | 0.725 |
+| PERSON | 0.933 | 0.765 | 0.395 | 0.725 |
 | PERSON, raw spaCy en_core_web_sm | 0.381 | 0.730 | | |
-| SECRET (21 kinds, n=1370) | 0.984 | 0.990 | - | 0.239 (any label) |
+| SECRET (21 kinds, n=1370) | 0.976 | 0.990 | - | 0.239 (any label) |
 | SECRET, detect-secrets 1.5 | 0.695 | 0.454 | | |
 
-Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.009 (0.1.1: 0.519); the entropy detector alone: 0.004. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.762: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.919: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted).
+Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.012 (0.1.1: 0.519); the entropy detector alone: 0.005. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.765: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.904: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted). Negatives include real standard-library lines, which name real authors; redacting those counts as a false redaction here.
 
 Scorer, live on 120 of 246 distinct dev-band descriptions (every one with a false positive, then CARD, PERSON, PHONE and SECRET:entropy true positives in turn; 0.19 s per call, 0 failures): at the 0.5 threshold it cleared 3 of 24 false positives and 0 of 115 true positives. It is cautious: it adds little precision and, on this sample, no leaks (`evals/results/scorer.json`).
 
-Latency on Python 3.14.10 (arm64): p50 12.1 µs and p99 79.6 µs per cell under 200 characters; p50 363.9 µs and p99 1055.7 µs per KB; a 10k-cell batch in 0.18 s (55673 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data.
+Latency on Python 3.14.10 (arm64): p50 12.6 µs and p99 89.5 µs per cell under 200 characters; p50 395.2 µs and p99 1094.6 µs per KB; a 10k-cell batch (95% clean cells) in 0.133 s (75041 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
 
 ## Migrating from 0.1
 

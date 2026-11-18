@@ -39,7 +39,10 @@ def load_keys():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-calls", type=int, default=120)
+    parser.add_argument("--max-calls", type=lambda v: max(0, int(v)), default=120)
+    parser.add_argument(
+        "--budget-s", type=float, default=600, help="wall clock for the whole run"
+    )
     args = parser.parse_args()
     load_keys()
     band = {}  # description -> [true positives, false positives, type]
@@ -54,9 +57,10 @@ def main():
                 if len(value) >= 6
                 else {value}
             )
-            assert not any(
-                p in description for p in pieces if len(p) >= 4 and not p.isdigit()
-            ), "raw value in payload"
+            if any(p in description for p in pieces if len(p) >= 4):
+                raise SystemExit(
+                    "a raw candidate value reached a payload; no call made"
+                )
             tp = any(
                 s[0] < g["end"] and g["start"] < s[1] and family(s[2]) == g["type"]
                 for g in r["spans"]
@@ -71,11 +75,13 @@ def main():
         by_type.setdefault(band[d][2], []).append(d)
     tps = [d for group in itertools.zip_longest(*by_type.values()) for d in group if d]
     order = (fps + tps)[: args.max_calls]
-    scorer = Scorer(budget_s=10_000, max_calls=args.max_calls)
+    # One provider only, so --max-calls caps provider requests, not descriptions; one shared deadline.
+    scorer = Scorer(chain=Scorer().chain[:1])
+    deadline = time.monotonic() + args.budget_s
     scored, started = [], time.monotonic()
     for description in order:
         try:
-            p = scorer._probability(description, time.monotonic() + 30)
+            p = scorer._probability(description, deadline)
         except Exception as exc:  # noqa: BLE001 counted as a fail-closed answer
             p = None
             print("failed:", type(exc).__name__)

@@ -22,7 +22,7 @@
 | bearer | 40 | 1.000 | 1.000 | 0.000 | 0.275 |
 | discord-webhook | 50 | 1.000 | 1.000 | 0.100 | 0.180 |
 | entropy | 240 | 0.971 | 0.971 | 0.117 | 0.354 |
-| generic | 240 | 0.983 | 0.967 | 0.212 | 0.308 |
+| generic | 240 | 0.979 | 0.979 | 0.212 | 0.308 |
 | github-token | 50 | 1.000 | 1.000 | 0.800 | 0.220 |
 | gitlab-token | 50 | 1.000 | 1.000 | 1.000 | 0.220 |
 | google-api-key | 50 | 1.000 | 1.000 | 0.200 | 0.200 |
@@ -38,7 +38,7 @@
 | stripe-key | 50 | 1.000 | 1.000 | 0.720 | 0.120 |
 | url-password | 40 | 1.000 | 1.000 | 0.750 | 0.175 |
 
-SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
+SECRET precision (all kinds): inconnu 0.976, detect-secrets 0.705
 
 | predicted secret kind | n | precision |
 |---|---|---|
@@ -47,8 +47,8 @@ SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
 | SECRET:basic-auth | 28 | 1.000 |
 | SECRET:bearer | 40 | 1.000 |
 | SECRET:discord-webhook | 50 | 1.000 |
-| SECRET:entropy | 263 | 0.920 |
-| SECRET:generic | 242 | 1.000 |
+| SECRET:entropy | 272 | 0.901 |
+| SECRET:generic | 244 | 0.975 |
 | SECRET:github-token | 50 | 1.000 |
 | SECRET:gitlab-token | 50 | 1.000 |
 | SECRET:google-api-key | 50 | 1.000 |
@@ -69,7 +69,7 @@ SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
 | category | inconnu | detect-secrets | 0.1.1 |
 |---|---|---|---|
 | neg:base64-in-code | 0.000 | 0.405 | 0.360 |
-| neg:code | 0.000 | 0.000 | 0.385 |
+| neg:code | 0.030 | 0.000 | 0.385 |
 | neg:company | 0.110 | 0.000 | 0.920 |
 | neg:corgea-issue-field | 0.000 | 0.000 | 0.418 |
 | neg:corgea-issue-json | 0.000 | 1.000 | 1.000 |
@@ -80,7 +80,7 @@ SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
 | neg:numeric-id | 0.025 | 0.000 | 0.975 |
 | neg:path | 0.000 | 0.000 | 0.075 |
 | neg:prose | 0.005 | 0.000 | 0.710 |
-| neg:random-id | 0.105 | 0.030 | 0.325 |
+| neg:random-id | 0.135 | 0.030 | 0.325 |
 | neg:real-stdlib-line | 0.005 | 0.000 | 0.290 |
 | neg:real-uv-lock-line | 0.000 | 0.000 | 0.884 |
 | neg:scan-row | 0.000 | 0.985 | 1.000 |
@@ -89,13 +89,13 @@ SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
 | neg:uuid | 0.000 | 0.000 | 0.275 |
 | neg:version | 0.000 | 0.000 | 0.605 |
 | neg:vuln-id | 0.000 | 0.000 | 0.460 |
-| **all negatives** | 0.011 | 0.065 | 0.528 |
+| **all negatives** | 0.013 | 0.065 | 0.528 |
 
-inconnu FRR by detector: entropy 0.0043, ipaddress 0.0004, luhn 0.0010, names 0.0047, regex 0.0006
+inconnu FRR by detector: entropy 0.0055, ipaddress 0.0004, keyword 0.0012, luhn 0.0010, names 0.0047, regex 0.0006
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7238): p50 12.2 µs, p99 86.5 µs, max 198.8 µs
-- per KB (texts >= 64 chars, n=2163): p50 375.1 µs, p99 1051.3 µs
-- 10k-cell batch: 0.176 s, 56726 cells/s, 2.5 MB/s
+- per cell (<200 chars, n=7238): p50 12.5 µs, p99 88.1 µs, max 205.8 µs
+- per KB (texts >= 64 chars, n=2163): p50 390.7 µs, p99 1103.9 µs
+- 10k-cell batch: 0.132 s, 75681 cells/s, 3.11 MB/s
 - inconnu 0.1.1 on the same records: inconnu-0.1.1 1.18 ms/record, spacy-sm-person 2.21 ms/record

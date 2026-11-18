@@ -9,7 +9,7 @@ from .scorer import Scorer, describe
 # and in between it is redacted unless a Scorer says it may stay (fail closed).
 LOW, HIGH = 0.5, 0.8
 DETECTORS = (pii.find, credentials.find, person.find, entropy.find)
-MIN_LENGTH = 6  # shorter unkeyed cells cannot hold any detected type
+MIN_LENGTH = 5  # shorter unkeyed cells cannot hold any detected type ("Dr Li" is 5)
 
 
 def _spans(text: str, key: str | None) -> list[tuple]:
@@ -48,7 +48,7 @@ def redact_batch(
     Returns one (redacted_text, findings) per cell. Findings carry type, start, end, confidence and
     detector, never the value.
     """
-    keys = keys or [None] * len(cells)
+    keys = [None] * len(cells) if keys is None else keys
     found = [_spans(text, key) for text, key in zip(cells, keys, strict=True)]
     if scorer is not None:
         band = [

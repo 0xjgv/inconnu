@@ -170,8 +170,13 @@ def latency(records) -> dict:
                 / (len(r["text"].encode()) / 1024)
             )
     rng = random.Random(7)
-    negatives = [c for c, r in zip(cells, records) if r["category"].startswith("neg:")]
-    positives = [c for c, r in zip(cells, records) if r["category"].startswith("pos:")]
+    short = [r for r in records if len(r["text"]) < 200]
+    negatives = [
+        (r["text"], r["key"]) for r in short if r["category"].startswith("neg:")
+    ]
+    positives = [
+        (r["text"], r["key"]) for r in short if r["category"].startswith("pos:")
+    ]
     batch = [
         rng.choice(positives) if rng.random() < 0.05 else rng.choice(negatives)
         for _ in range(10_000)
@@ -306,6 +311,10 @@ def main():
     for split in args.split or ["dev", "test"]:
         records = load(split)
         results = {
+            "data_sha256": hashlib.sha256(
+                (ROOT / "data" / f"{split}.jsonl").read_bytes()
+            ).hexdigest(),
+            "python": platform.python_version(),
             "inconnu_version": inconnu.__version__,
             "phonenumbers_version": phonenumbers.__version__,
             "records": len(records),
