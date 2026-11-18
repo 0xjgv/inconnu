@@ -15,7 +15,7 @@ from .person import wordlist
 RULES = [
     (
         "private-key",
-        r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]{16,}?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----",
+        r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]{16,8192}?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----",
         0.99,
         ("PRIVATE KEY",),
     ),
@@ -125,7 +125,7 @@ SECRET_KEY = re.compile(
 )  # matched against a snake_cased, lowercased key
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
-    rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]*?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
+    rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{0, 48}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
     r"(?:\"(?P<dq>[^\"\n]{1,4096})\"|'(?P<sq>[^'\n]{1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;](?=[^\s\"'\x60])){1,256}))"
 )
 PLACEHOLDER = re.compile(

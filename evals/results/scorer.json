@@ -2,25 +2,25 @@
  "summary": {
   "descriptions_in_band": 246,
   "scored": 120,
-  "seconds_per_call": 0.23,
+  "seconds_per_call": 0.19,
   "failed_calls": 0,
   "by_threshold": {
    "0.3": {
     "true_positives_cleared (leaks)": 0,
     "false_positives_cleared": 0,
-    "true_positives_scored": 118,
+    "true_positives_scored": 115,
     "false_positives_scored": 24
    },
    "0.5": {
     "true_positives_cleared (leaks)": 0,
     "false_positives_cleared": 3,
-    "true_positives_scored": 118,
+    "true_positives_scored": 115,
     "false_positives_scored": 24
    },
    "0.7": {
     "true_positives_cleared (leaks)": 0,
     "false_positives_cleared": 3,
-    "true_positives_scored": 118,
+    "true_positives_scored": 115,
     "false_positives_scored": 24
    }
   }
@@ -30,37 +30,37 @@
    "type": "CARD",
    "tp": 0,
    "fp": 1,
-   "p": 0.32
+   "p": 0.3
   },
   {
    "type": "CARD",
    "tp": 0,
    "fp": 1,
-   "p": 0.76
+   "p": 0.72
   },
   {
    "type": "CARD",
    "tp": 0,
    "fp": 1,
-   "p": 0.77
+   "p": 0.74
   },
   {
    "type": "CARD",
    "tp": 0,
    "fp": 2,
-   "p": 0.44
+   "p": 0.43
   },
   {
    "type": "PERSON",
    "tp": 0,
    "fp": 5,
-   "p": 0.8
+   "p": 0.81
   },
   {
    "type": "PERSON",
    "tp": 0,
    "fp": 4,
-   "p": 0.8
+   "p": 0.81
   },
   {
    "type": "PERSON",
@@ -72,13 +72,13 @@
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.85
+   "p": 0.84
   },
   {
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.75
+   "p": 0.76
   },
   {
    "type": "SECRET:entropy",
@@ -90,19 +90,19 @@
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.85
+   "p": 0.86
   },
   {
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.87
+   "p": 0.86
   },
   {
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.87
+   "p": 0.86
   },
   {
    "type": "SECRET:entropy",
@@ -120,31 +120,103 @@
    "type": "SECRET:entropy",
    "tp": 0,
    "fp": 1,
-   "p": 0.86
+   "p": 0.87
   },
   {
    "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.73
+   "p": 0.77
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
   },
   {
    "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.72
+   "p": 0.7
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.94
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
   },
   {
    "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.76
+   "p": 0.75
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.92
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
   },
   {
    "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.76
+   "p": 0.77
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.92
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
   },
   {
    "type": "CARD",
@@ -153,76 +225,22 @@
    "p": 0.74
   },
   {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.75
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.77
-  },
-  {
-   "type": "CARD",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.77
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.75
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.77
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.76
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.77
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.8
-  },
-  {
-   "type": "CARD",
+   "type": "PERSON",
    "tp": 1,
    "fp": 0,
    "p": 0.81
   },
   {
-   "type": "CARD",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.75
+   "p": 0.94
   },
   {
-   "type": "CARD",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "CARD",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.75
+   "p": 0.86
   },
   {
    "type": "CARD",
@@ -231,160 +249,52 @@
    "p": 0.78
   },
   {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.8
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.8
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.85
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.85
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.85
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "CARD",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.85
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.8
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
    "type": "PERSON",
    "tp": 3,
    "fp": 0,
    "p": 0.81
   },
   {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.88
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.78
+  },
+  {
    "type": "PERSON",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.93
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.78
   },
   {
    "type": "PERSON",
@@ -393,28 +303,22 @@
    "p": 0.81
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
+   "p": 0.94
   },
   {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.8
+   "p": 0.85
   },
   {
-   "type": "PERSON",
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
+   "p": 0.71
   },
   {
    "type": "PERSON",
@@ -423,136 +327,22 @@
    "p": 0.82
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.8
+   "p": 0.89
   },
   {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.8
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
    "p": 0.87
   },
   {
-   "type": "PERSON",
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.75
   },
   {
    "type": "PERSON",
@@ -561,13 +351,307 @@
    "p": 0.81
   },
   {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.93
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.76
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.92
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.91
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.75
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.91
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.92
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.93
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.76
+  },
+  {
    "type": "PERSON",
    "tp": 1,
    "fp": 0,
    "p": 0.82
   },
   {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.93
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
    "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.91
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.91
+  },
+  {
+   "type": "CARD",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.75
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.93
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.94
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PHONE",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.94
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.88
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
+   "type": "PERSON",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.94
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.78
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.92
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.91
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PHONE",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.9
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
    "p": 0.85
@@ -579,49 +663,19 @@
    "p": 0.81
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
+   "p": 0.91
   },
   {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.85
   },
   {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.84
-  },
-  {
-   "type": "PERSON",
-   "tp": 3,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "PERSON",
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
    "p": 0.84
@@ -633,55 +687,43 @@
    "p": 0.82
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.86
+   "p": 0.92
   },
   {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.87
   },
   {
-   "type": "PERSON",
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.86
+   "p": 0.84
   },
   {
    "type": "PERSON",
    "tp": 2,
    "fp": 0,
-   "p": 0.81
+   "p": 0.8
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.9
   },
   {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.83
+   "p": 0.91
   },
   {
-   "type": "PERSON",
+   "type": "CARD",
    "tp": 1,
    "fp": 0,
    "p": 0.85
@@ -690,61 +732,19 @@
    "type": "PERSON",
    "tp": 1,
    "fp": 0,
-   "p": 0.82
+   "p": 0.8
   },
   {
-   "type": "PERSON",
+   "type": "PHONE",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
+   "p": 0.89
   },
   {
-   "type": "PERSON",
-   "tp": 2,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "PERSON",
+   "type": "SECRET:entropy",
    "tp": 1,
    "fp": 0,
-   "p": 0.81
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.86
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.83
-  },
-  {
-   "type": "PERSON",
-   "tp": 1,
-   "fp": 0,
-   "p": 0.82
+   "p": 0.87
   }
  ]
 }

@@ -9,6 +9,7 @@ Usage: python evals/scorer_eval.py [--max-calls 120]   (writes evals/results/sco
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 import time
@@ -62,8 +63,14 @@ def main():
             )
             entry = band.setdefault(description, [0, 0, s[2]])
             entry[0 if tp else 1] += 1
-    # Every description with a false positive first (what the scorer could clear), then the rest.
-    order = sorted(band, key=lambda d: (band[d][1] == 0, d))[: args.max_calls]
+    # Every description with a false positive first (what the scorer could clear), then true positives
+    # round-robin across types, so each type's leak risk is measured.
+    fps = sorted(d for d in band if band[d][1])
+    by_type: dict[str, list[str]] = {}
+    for d in sorted(d for d in band if not band[d][1]):
+        by_type.setdefault(band[d][2], []).append(d)
+    tps = [d for group in itertools.zip_longest(*by_type.values()) for d in group if d]
+    order = (fps + tps)[: args.max_calls]
     scorer = Scorer(budget_s=10_000, max_calls=args.max_calls)
     scored, started = [], time.monotonic()
     for description in order:

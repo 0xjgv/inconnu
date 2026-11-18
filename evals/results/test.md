@@ -3,9 +3,9 @@
 | type | n | precision | recall | F1 | covered | 0.1.1 precision | 0.1.1 recall |
 |---|---|---|---|---|---|---|---|
 | EMAIL | 300 | 0.997 | 1.000 | 0.998 | 1.000 | 0.865 | 1.000 |
-| PHONE | 300 | 0.997 | 0.937 | 0.966 | 0.937 | 0.651 | 0.927 |
+| PHONE | 300 | 0.996 | 0.937 | 0.966 | 0.937 | 0.651 | 0.927 |
 | IBAN | 150 | 1.000 | 1.000 | 1.000 | 1.000 | 0.993 | 1.000 |
-| CARD | 150 | 0.987 | 0.973 | 0.980 | 0.973 | - | 0.000 |
+| CARD | 150 | 0.986 | 0.973 | 0.980 | 0.973 | - | 0.000 |
 | SSN | 150 | 1.000 | 1.000 | 1.000 | 1.000 | - | 0.000 |
 | IP | 150 | 1.000 | 1.000 | 1.000 | 1.000 | - | 0.000 |
 | PERSON | 400 | 0.933 | 0.762 | 0.839 | 0.750 | 0.395 | 0.725 |
@@ -95,7 +95,7 @@ inconnu FRR by detector: entropy 0.0045, luhn 0.0004, names 0.0043, phonenumbers
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7256): p50 21.6 µs, p99 157.9 µs, max 446.2 µs
-- per KB (texts >= 64 chars, n=2100): p50 654.7 µs, p99 1904.3 µs
-- 10k-cell batch: 0.291 s, 34391 cells/s, 1.54 MB/s
+- per cell (<200 chars, n=7256): p50 12.1 µs, p99 79.6 µs, max 198.0 µs
+- per KB (texts >= 64 chars, n=2100): p50 363.9 µs, p99 1055.7 µs
+- 10k-cell batch: 0.18 s, 55673 cells/s, 2.49 MB/s
 - inconnu 0.1.1 on the same records: inconnu-0.1.1 1.33 ms/record, spacy-sm-person 2.13 ms/record

@@ -110,9 +110,9 @@ Thresholds and allowlists were tuned on the dev split; the numbers below are the
 
 Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.009 (0.1.1: 0.519); the entropy detector alone: 0.004. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.762: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.919: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted).
 
-Scorer, live on 120 of 246 distinct dev-band descriptions (0.23 s per call, 0 failures): at the 0.5 threshold it cleared 3 of 24 false positives and 0 of 118 true positives (`evals/results/scorer.json`).
+Scorer, live on 120 of 246 distinct dev-band descriptions (every one with a false positive, then CARD, PERSON, PHONE and SECRET:entropy true positives in turn; 0.19 s per call, 0 failures): at the 0.5 threshold it cleared 3 of 24 false positives and 0 of 115 true positives. It is cautious: it adds little precision and, on this sample, no leaks (`evals/results/scorer.json`).
 
-Latency on Python 3.14.10 (arm64): p50 21.6 µs and p99 157.9 µs per cell under 200 characters; p50 654.7 µs and p99 1904.3 µs per KB; a 10k-cell batch in 0.291 s (34391 cells/s). inconnu 0.1.1 took 1.33 ms per record on the same data.
+Latency on Python 3.14.10 (arm64): p50 12.1 µs and p99 79.6 µs per cell under 200 characters; p50 363.9 µs and p99 1055.7 µs per KB; a 10k-cell batch in 0.18 s (55673 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data.
 
 ## Migrating from 0.1
 

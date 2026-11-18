@@ -38,7 +38,7 @@
 | stripe-key | 50 | 1.000 | 1.000 | 0.720 | 0.120 |
 | url-password | 40 | 1.000 | 1.000 | 0.750 | 0.175 |
 
-SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.706
+SECRET precision (all kinds): inconnu 0.985, detect-secrets 0.705
 
 | predicted secret kind | n | precision |
 |---|---|---|
@@ -95,7 +95,7 @@ inconnu FRR by detector: entropy 0.0043, ipaddress 0.0004, luhn 0.0010, names 0.
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7238): p50 19.9 µs, p99 147.3 µs, max 367.7 µs
-- per KB (texts >= 64 chars, n=2163): p50 613.0 µs, p99 2454.6 µs
-- 10k-cell batch: 0.27 s, 37065 cells/s, 1.63 MB/s
+- per cell (<200 chars, n=7238): p50 12.7 µs, p99 87.1 µs, max 219.8 µs
+- per KB (texts >= 64 chars, n=2163): p50 362.0 µs, p99 1061.1 µs
+- 10k-cell batch: 0.174 s, 57481 cells/s, 2.53 MB/s
 - inconnu 0.1.1 on the same records: inconnu-0.1.1 1.18 ms/record, spacy-sm-person 2.21 ms/record

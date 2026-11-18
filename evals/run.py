@@ -133,6 +133,7 @@ def score(records, predictions, types=None) -> dict:
         "gold": dict(sorted(gold_n.items())),
         "precision": {k: ratio(pred_hit[k], pred_n[k]) for k in sorted(pred_n)},
         "predicted": dict(sorted(pred_n.items())),
+        "predicted_hits": dict(sorted(pred_hit.items())),
         "frr": {k: ratio(neg_hit[k], neg_n[k]) for k in sorted(neg_n)},
         "frr_all": ratio(sum(neg_hit.values()), negatives),
         "frr_by_detector": {
@@ -143,13 +144,9 @@ def score(records, predictions, types=None) -> dict:
 
 def type_precision(result: dict, kind: str) -> float | None:
     """Precision over every predicted type in a family (SECRET:* or one PII type)."""
-    hits = sum(
-        round((result["precision"][k] or 0) * n)
-        for k, n in result["predicted"].items()
-        if family(k) == kind
-    )
+    hits = sum(n for k, n in result["predicted_hits"].items() if family(k) == kind)
     total = sum(n for k, n in result["predicted"].items() if family(k) == kind)
-    return round(hits / total, 4) if total else None
+    return hits / total if total else None
 
 
 def latency(records) -> dict:

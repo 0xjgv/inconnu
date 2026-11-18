@@ -153,6 +153,36 @@
    "SECRET:url-password": 40,
    "SSN": 150
   },
+  "predicted_hits": {
+   "CARD": 140,
+   "EMAIL": 300,
+   "IBAN": 150,
+   "IP": 150,
+   "PERSON": 310,
+   "PHONE": 279,
+   "SECRET:anthropic-key": 50,
+   "SECRET:aws-access-key": 50,
+   "SECRET:basic-auth": 28,
+   "SECRET:bearer": 40,
+   "SECRET:discord-webhook": 50,
+   "SECRET:entropy": 242,
+   "SECRET:generic": 242,
+   "SECRET:github-token": 50,
+   "SECRET:gitlab-token": 50,
+   "SECRET:google-api-key": 50,
+   "SECRET:jwt": 50,
+   "SECRET:npm-token": 50,
+   "SECRET:openai-key": 50,
+   "SECRET:password-hash": 50,
+   "SECRET:private-key": 20,
+   "SECRET:pypi-token": 50,
+   "SECRET:sendgrid-key": 48,
+   "SECRET:slack-token": 50,
+   "SECRET:slack-webhook": 50,
+   "SECRET:stripe-key": 50,
+   "SECRET:url-password": 40,
+   "SSN": 150
+  },
   "frr": {
    "neg:base64-in-code": 0.0,
    "neg:code": 0.0,
@@ -308,6 +338,22 @@
    "SECRET:Slack Token": 100,
    "SECRET:Stripe Access Key": 35
   },
+  "predicted_hits": {
+   "SECRET:AWS Access Key": 52,
+   "SECRET:Base64 High Entropy String": 131,
+   "SECRET:Basic Auth Credentials": 30,
+   "SECRET:GitHub Token": 38,
+   "SECRET:GitLab Token": 50,
+   "SECRET:Hex High Entropy String": 21,
+   "SECRET:JSON Web Token": 50,
+   "SECRET:OpenAI Token": 31,
+   "SECRET:Private Key": 20,
+   "SECRET:PyPI Token": 50,
+   "SECRET:Secret Keyword": 99,
+   "SECRET:SendGrid API Key": 50,
+   "SECRET:Slack Token": 100,
+   "SECRET:Stripe Access Key": 35
+  },
   "frr": {
    "neg:base64-in-code": 0.405,
    "neg:code": 0.0,
@@ -431,6 +477,9 @@
    "PHONE": 1.0
   },
   "predicted": {
+   "PHONE": 156
+  },
+  "predicted_hits": {
    "PHONE": 156
   },
   "frr": {
@@ -594,6 +643,28 @@
    "TIME": 24,
    "WORK_OF_ART": 269
   },
+  "predicted_hits": {
+   "CARDINAL": 0,
+   "DATE": 0,
+   "EMAIL": 300,
+   "EVENT": 0,
+   "FAC": 0,
+   "GPE": 0,
+   "IBAN": 150,
+   "LANGUAGE": 0,
+   "LAW": 0,
+   "LOC": 0,
+   "MONEY": 0,
+   "NORP": 0,
+   "ORDINAL": 0,
+   "ORG": 0,
+   "PERSON": 318,
+   "PHONE": 269,
+   "PRODUCT": 0,
+   "QUANTITY": 0,
+   "TIME": 0,
+   "WORK_OF_ART": 0
+  },
   "frr": {
    "neg:base64-in-code": 0.36,
    "neg:code": 0.385,
@@ -719,6 +790,9 @@
   "predicted": {
    "PERSON": 761
   },
+  "predicted_hits": {
+   "PERSON": 318
+  },
   "frr": {
    "neg:base64-in-code": 0.025,
    "neg:code": 0.055,
@@ -755,20 +829,20 @@
   "python": "3.14.10",
   "machine": "arm64",
   "cell_us": {
-   "p50": 19.9,
-   "p99": 147.3,
-   "max": 367.7,
+   "p50": 12.7,
+   "p99": 87.1,
+   "max": 219.8,
    "n": 7238
   },
   "per_kb_us": {
-   "p50": 613.0,
-   "p99": 2454.6,
+   "p50": 362.0,
+   "p99": 1061.1,
    "n": 2163
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.27,
-   "cells_per_s": 37065,
-   "mb_per_s": 1.63
+   "seconds_median_of_5": 0.174,
+   "cells_per_s": 57481,
+   "mb_per_s": 2.53
   }
  }
 }

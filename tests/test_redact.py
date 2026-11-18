@@ -54,6 +54,26 @@ def test_pii(text, expected):
             "slack-token",
         ),
         ("sk_" + "live_" + "4eC39HqLyjWDarjtT1zdp7dc", "stripe-key"),
+        ("npm" + "_" + A36, "npm-token"),
+        ("pypi-" + "AgEIcHlwaS5vcmc" + "Ab3_dE6-gH9" * 6, "pypi-token"),
+        (
+            "SG."
+            + "Ab3dE6gH9jK2mN5pQ8sT1v"
+            + "."
+            + "Ab3dE6gH9jK2mN5pQ8sT1vW4yZ7bC0eF3hI6kL9nO2q",
+            "sendgrid-key",
+        ),
+        (
+            "$2b$12$" + "Ab3dE6gH9jK2mN5pQ8sT1vW4yZ7bC0eF3hI6kL9nO2qR5tU8wX1z.",
+            "password-hash",
+        ),
+        (
+            "$argon2id$v=19$m=65536,t=3,p=4$"
+            + "c2FsdHNhbHRzYWx0"
+            + "$"
+            + "Ab3dE6gH9jK2mN5pQ8sT1vW4",
+            "password-hash",
+        ),
         ("AIza" + "SyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY", "google-api-key"),
         (
             "eyJhbGciOiJIUzI1NiJ9"
@@ -93,10 +113,12 @@ def test_webhooks_and_pem():
         + "MIIEowIBAAKCAQEA7bq+9" * 6
         + "\n-----END RSA PRIVATE KEY-----"
     )
+    basic = "Authorization: Basic " + "dXNlcjpodW50ZXIyIQ=="
     for value, kind in (
         (slack, "slack-webhook"),
         (discord, "discord-webhook"),
         (pem, "private-key"),
+        (basic, "basic-auth"),
     ):
         redacted, types = placeholders(f"x {value} y")
         assert value not in redacted and f"SECRET:{kind}" in types, kind
@@ -244,3 +266,20 @@ def test_redact_json_redacts_keys_floats_and_keeps_colliding_keys():
         }
     )
     assert out == {"[EMAIL]": 1, "[EMAIL] (2)": 2, "phone": "[PHONE]", "ratio": 0.5}
+
+
+def test_adversarial_cells_stay_linear():
+    import time
+
+    begin = "-----BEGIN " + "PRIVATE KEY-----"
+    cells = [
+        "key " + "-" * 10000,
+        "token " + "a_" * 8000,
+        "key " + "-".join("deadbeef" for _ in range(1400)),
+        begin * 600,
+        "Maria " * 3000,
+    ]
+    for cell in cells:
+        started = time.perf_counter()
+        redact(cell)
+        assert time.perf_counter() - started < 0.5, cell[:20]
