@@ -1,0 +1,807 @@
+"""Generate labeled eval data: synthetic positives for every type and negatives shaped like Corgea data.
+
+No real customer data. Secret values are random strings in each provider's documented format; formats follow the
+gitleaks rule set (https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml) and the detect-secrets
+plugins (https://github.com/Yelp/detect-secrets/tree/master/detect_secrets/plugins). Values are generated at run
+time and never committed, so no secret-shaped string lands in git.
+
+Usage: python evals/generate.py  (writes evals/data/{dev,test}.jsonl; dev tunes thresholds, test reports them)
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import random
+import string
+import sysconfig
+import uuid
+from pathlib import Path
+
+from faker import Faker
+
+ROOT = Path(__file__).parent
+LOCALES = [
+    "en_US",
+    "en_GB",
+    "de_DE",
+    "fr_FR",
+    "es_ES",
+    "it_IT",
+    "nl_NL",
+    "pt_BR",
+    "pl_PL",
+    "en_IN",
+]
+B62 = string.ascii_letters + string.digits
+B64 = B62 + "+/"
+B64URL = B62 + "-_"
+HEXD = "0123456789abcdef"
+UPPER32 = string.ascii_uppercase + "234567"
+WORDS = (
+    "user account token auth session fetch handler request response config settings client server cache "
+    "scan issue project branch commit report rule finding severity webhook payload event queue worker job "
+    "retry timeout limit page count total item list map filter parse render update delete create get set "
+    "validate login logout password secret key value id name email phone address file path line column"
+).split()
+
+
+class Gen:
+    def __init__(self, seed: int):
+        self.r = random.Random(seed)
+        self.fakers = {loc: Faker(loc) for loc in LOCALES}
+        for i, f in enumerate(self.fakers.values()):
+            f.seed_instance(seed * 100 + i)
+        self.en = self.fakers["en_US"]
+        self.records: list[dict] = []
+
+    def s(self, alphabet: str, n: int) -> str:
+        return "".join(self.r.choice(alphabet) for _ in range(n))
+
+    def faker(self) -> Faker:
+        return self.fakers[self.r.choice(LOCALES)]
+
+    def add(
+        self,
+        category: str,
+        template: str,
+        value: str = "",
+        label: str | None = None,
+        kind: str | None = None,
+        key: str | None = None,
+        inner: tuple[int, int] | None = None,
+    ):
+        """template holds {v} once; inner limits the gold span to value[inner[0]:inner[1]]."""
+        start = template.find("{v}")
+        text = template.replace("{v}", value) if start >= 0 else template
+        spans = []
+        if label and start >= 0:
+            a, b = inner or (0, len(value))
+            spans.append(
+                {
+                    "type": label,
+                    "kind": kind or label,
+                    "start": start + a,
+                    "end": start + b,
+                }
+            )
+        self.records.append(
+            {"category": category, "text": text, "key": key, "spans": spans}
+        )
+
+    # ---------- PII positives ----------
+
+    def pii(self, n: int):
+        cell = ["{v}", " {v} "]
+        prose = [
+            "Contact {v} for access.",
+            "Escalated by {v} at 10:42 UTC.",
+            "{v}",
+            "owner: {v}",
+            '{"reporter": "{v}", "severity": "high"}',
+            "2024-11-02T10:22:31Z INFO notified {v} (scan finished)",
+            "Please reach out to {v} about the SSO setup.",
+            "| 42 | {v} | active |",
+        ]
+        for _ in range(n):
+            f = self.faker()
+            self.add("pos:EMAIL", self.r.choice(prose + cell), f.email(), "EMAIL")
+            self.add(
+                "pos:EMAIL",
+                self.r.choice(prose),
+                f.user_name() + "@" + f.domain_name(),
+                "EMAIL",
+            )
+            self.add(
+                "pos:PHONE", self.r.choice(prose + cell), f.phone_number(), "PHONE"
+            )
+            raw = f.phone_number().split("x")[0]
+            digits = ("+" if raw.startswith("+") else "") + "".join(
+                c for c in raw if c.isdigit()
+            )
+            self.add(
+                "pos:PHONE",
+                "{v}",
+                digits,
+                "PHONE",
+                key=self.r.choice(["phone", "phone_number", "mobile"]),
+            )
+            iban = f.iban()
+            if self.r.random() < 0.5:
+                iban = " ".join(iban[i : i + 4] for i in range(0, len(iban), 4))
+            self.add(
+                "pos:IBAN",
+                self.r.choice(
+                    ["IBAN: {v}", "{v}", "Refund to {v} by Friday", "iban={v}"]
+                ),
+                iban,
+                "IBAN",
+            )
+            card = self.en.credit_card_number()
+            if self.r.random() < 0.5 and len(card) == 16:
+                card = self.r.choice([" ", "-"]).join(
+                    card[i : i + 4] for i in range(0, 16, 4)
+                )
+            self.add(
+                "pos:CARD",
+                self.r.choice(
+                    ["card {v} exp 12/29", "{v}", "Paid with {v}.", "pan={v}"]
+                ),
+                card,
+                "CARD",
+                key=self.r.choice([None, "card_number"]),
+            )
+            self.add(
+                "pos:SSN",
+                self.r.choice(["SSN {v}", "{v}", "ssn: {v}", "Employee SSN is {v}."]),
+                self.en.ssn(),
+                "SSN",
+            )
+            ip = self.r.choice(
+                [self.en.ipv4_public(), self.en.ipv4_private(), self.en.ipv6()]
+            )
+            self.add(
+                "pos:IP",
+                self.r.choice(
+                    [
+                        "from {v}",
+                        "{v}",
+                        "client_ip={v} status=200",
+                        "Login from {v} blocked",
+                    ]
+                ),
+                ip,
+                "IP",
+            )
+
+    def persons(self, n: int):
+        prose = [
+            "Assigned to {v} yesterday.",
+            "{v} approved the fix.",
+            "Reviewed by {v} on 2024-10-11.",
+            "Hi {v}, your scan finished.",
+            "The triage was done by {v} and closed.",
+            "cc {v}",
+            "Thanks {v} for the report!",
+            "{v} (Security Lead) asked for an export.",
+            "Owner: {v}",
+            "Meeting notes: {v} will rotate the keys.",
+        ]
+        for _ in range(n):
+            f = self.faker()
+            name = (
+                f"{f.first_name()} {f.last_name()}"
+                if self.r.random() < 0.8
+                else f.name()
+            )
+            self.add("pos:PERSON", self.r.choice(prose), name, "PERSON")
+        for _ in range(n // 3):
+            f = self.faker()
+            self.add(
+                "pos:PERSON",
+                "{v}",
+                f"{f.first_name()} {f.last_name()}",
+                "PERSON",
+                key=self.r.choice(["full_name", "author", "name", "assignee"]),
+            )
+
+    # ---------- secret positives ----------
+
+    def jwt(self) -> str:
+        def enc(d):
+            return (
+                base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
+            )
+
+        head = enc({"alg": "HS256", "typ": "JWT"})
+        body = enc(
+            {
+                "sub": str(self.r.randint(1, 10**6)),
+                "iat": self.r.randint(16 * 10**8, 18 * 10**8),
+                "role": "user",
+            }
+        )
+        return f"{head}.{body}.{self.s(B64URL, 43)}"
+
+    def pem(self) -> str:
+        label = self.r.choice(
+            ["RSA PRIVATE KEY", "PRIVATE KEY", "EC PRIVATE KEY", "OPENSSH PRIVATE KEY"]
+        )
+        body = "\n".join(self.s(B64, 64) for _ in range(self.r.randint(4, 12)))
+        return f"-----BEGIN {label}-----\n{body}\n-----END {label}-----"
+
+    def secrets(self, n: int):
+        r, s = self.r, self.s
+        kinds = {
+            "aws-access-key": lambda: r.choice(["AKIA", "ASIA"]) + s(UPPER32, 16),
+            "github-token": lambda: (
+                r.choice(["ghp_", "gho_", "ghu_", "ghs_", "ghr_"]) + s(B62, 36)
+                if r.random() < 0.7
+                else "github_pat_" + s(B62, 22) + "_" + s(B62, 59)
+            ),
+            "gitlab-token": lambda: "glpat-" + s(B62 + "-_", 20),
+            "anthropic-key": lambda: "sk-ant-api03-" + s(B64URL, 93) + "AA",
+            "openai-key": lambda: (
+                "sk-proj-" + s(B64URL, 74) + "T3BlbkFJ" + s(B64URL, 74)
+                if r.random() < 0.6
+                else "sk-" + s(B62, 20) + "T3BlbkFJ" + s(B62, 20)
+            ),
+            "slack-token": lambda: (
+                r.choice(["xoxb-", "xoxp-"])
+                + f"{r.randint(10**9, 10**12)}-{r.randint(10**9, 10**12)}-"
+                + s(B62, 24)
+            ),
+            "slack-webhook": lambda: (
+                "https://hooks.slack.com/services/T"
+                + s(UPPER32, 8)
+                + "/B"
+                + s(UPPER32, 10)
+                + "/"
+                + s(B62, 24)
+            ),
+            "discord-webhook": lambda: (
+                f"https://discord.com/api/webhooks/{r.randint(10**17, 10**18)}/"
+                + s(B64URL, 68)
+            ),
+            "stripe-key": lambda: (
+                r.choice(["sk_live_", "sk_test_", "rk_live_"])
+                + s(B62, r.choice([24, 99]))
+            ),
+            "google-api-key": lambda: "AIza" + s(B64URL, 35),
+            "npm-token": lambda: "npm_" + s(B62, 36),
+            "pypi-token": lambda: "pypi-AgEIcHlwaS5vcmc" + s(B64URL, 70),
+            "sendgrid-key": lambda: "SG." + s(B64URL, 22) + "." + s(B64URL, 43),
+            "jwt": self.jwt,
+            "password-hash": lambda: r.choice(
+                [
+                    "$2b$12$" + s(B62 + "./", 53),
+                    "pbkdf2_sha256$600000$" + s(B62, 22) + "$" + s(B64, 43) + "=",
+                    "$argon2id$v=19$m=65536,t=3,p=4$" + s(B64, 22) + "$" + s(B64, 43),
+                ]
+            ),
+        }
+        code = [
+            'API_KEY = "{v}"',
+            "export SERVICE_KEY={v}",
+            "token: {v}",
+            '{"credential": "{v}"}',
+            "{v}",
+            "Rotated {v} after the incident.",
+            'curl -H "X-Api-Key: {v}" https://api.example.com/v1/items',
+            "2024-11-02 10:22:31 DEBUG using key {v}",
+            "config.set('auth', '{v}')",
+        ]
+        for kind, make in kinds.items():
+            for _ in range(n):
+                self.add(f"pos:SECRET:{kind}", r.choice(code), make(), "SECRET", kind)
+            for _ in range(n // 4):
+                self.add(
+                    f"pos:SECRET:{kind}",
+                    "{v}",
+                    make(),
+                    "SECRET",
+                    kind,
+                    key=r.choice(["value", "data", "notes"]),
+                )
+        for _ in range(n // 2):
+            self.add(
+                "pos:SECRET:private-key",
+                r.choice(["{v}", "key_material = '''{v}'''", "{v}\n"]),
+                self.pem(),
+                "SECRET",
+                "private-key",
+            )
+        # Credentials inside URLs: only the password is gold.
+        for _ in range(n):
+            f = self.faker()
+            user, pw = (
+                f.user_name(),
+                f.password(length=r.randint(10, 20), special_chars=r.random() < 0.3),
+            )
+            scheme = r.choice(
+                [
+                    "postgres",
+                    "postgresql",
+                    "mysql",
+                    "mongodb+srv",
+                    "redis",
+                    "amqp",
+                    "https",
+                ]
+            )
+            host = (
+                f.domain_word()
+                + "."
+                + r.choice(["internal", "rds.amazonaws.com", "example.net"])
+            )
+            url = f"{scheme}://{user}:{pw}@{host}:{r.randint(1000, 9999)}/{f.word()}"
+            a = len(scheme) + 3 + len(user) + 1
+            self.add(
+                "pos:SECRET:url-password",
+                r.choice(["DATABASE_URL={v}", "{v}", "connecting to {v}"]),
+                url,
+                "SECRET",
+                "url-password",
+                inner=(a, a + len(pw)),
+            )
+        # Opaque bearer and basic credentials in headers: the token is gold.
+        for _ in range(n):
+            self.add(
+                "pos:SECRET:bearer",
+                "Authorization: Bearer {v}",
+                s(B64URL, r.randint(24, 64)),
+                "SECRET",
+                "bearer",
+            )
+            basic = base64.b64encode(
+                f"{self.en.user_name()}:{self.en.password()}".encode()
+            ).decode()
+            self.add(
+                "pos:SECRET:basic-auth",
+                "Authorization: Basic {v}",
+                basic,
+                "SECRET",
+                "basic-auth",
+            )
+        # Passwords and secrets under secret-like keys, in code, env files, YAML and table cells.
+        for _ in range(n * 3):
+            f = self.faker()
+            value = r.choice(
+                [
+                    f.password(length=r.randint(8, 20)),
+                    s(B64, 40),
+                    s(HEXD, 32),
+                    f.password(length=12, special_chars=False),
+                ]
+            )
+            key = r.choice(
+                [
+                    "password",
+                    "DB_PASSWORD",
+                    "client_secret",
+                    "aws_secret_access_key",
+                    "apiKey",
+                    "auth_token",
+                    "SECRET_KEY",
+                    "smtp_pass",
+                    "privateKey",
+                    "webhook_secret",
+                ]
+            )
+            template = r.choice(
+                [
+                    key + ' = "{v}"',
+                    key + "={v}",
+                    key + ": {v}",
+                    '"' + key + '": "{v}"',
+                    key + " := '{v}'",
+                ]
+            )
+            self.add("pos:SECRET:generic", template, value, "SECRET", "generic")
+            self.add("pos:SECRET:generic", "{v}", value, "SECRET", "generic", key=key)
+        # Unknown secrets with no provider prefix and no key: the entropy detector's job.
+        for _ in range(n * 3):
+            value = r.choice(
+                [
+                    s(B62, r.randint(24, 48)),
+                    s(B64, r.randint(28, 64)),
+                    s(B64URL, r.randint(24, 48)),
+                ]
+            )
+            self.add(
+                "pos:SECRET:entropy",
+                r.choice(
+                    [
+                        "{v}",
+                        "Rotated {v} after the incident.",
+                        "X-Internal-Auth: {v}",
+                        '{"value": "{v}"}',
+                        "use {v} for the staging tenant",
+                    ]
+                ),
+                value,
+                "SECRET",
+                "entropy",
+            )
+            self.add(
+                "pos:SECRET:entropy",
+                r.choice(["the api key is {v}", "secret {v}", "token={v}"]),
+                s(HEXD, r.choice([32, 40, 64])),
+                "SECRET",
+                "entropy",
+            )
+
+    # ---------- negatives ----------
+
+    def identifier(self) -> str:
+        words = [self.r.choice(WORDS) for _ in range(self.r.randint(2, 5))]
+        style = self.r.choice(["snake", "camel", "pascal", "kebab", "const"])
+        suffix = self.r.choice(["", "", "2", "_v2", "V3", "_401", "Id", "_test"])
+        if style == "snake":
+            return "_".join(words) + suffix
+        if style == "kebab":
+            return "-".join(words) + suffix.lower()
+        if style == "const":
+            return "_".join(words).upper() + suffix.upper()
+        out = "".join(w.capitalize() for w in words) + suffix
+        return out[0].lower() + out[1:] if style == "camel" else out
+
+    def path(self) -> str:
+        r = self.r
+        parts = [
+            r.choice(
+                [
+                    "src",
+                    "app",
+                    "lib",
+                    "pkg",
+                    "internal",
+                    "services",
+                    "frontend/src",
+                    "backend",
+                ]
+            )
+        ]
+        parts += [self.identifier() for _ in range(r.randint(1, 3))]
+        name = self.identifier() + r.choice(
+            [".py", ".ts", ".tsx", ".go", ".java", ".rb", ".js", ".yaml", ".json"]
+        )
+        p = "/".join(parts + [name])
+        return r.choice(
+            [
+                p,
+                "/" + p,
+                "./" + p,
+                "C:\\Users\\dev\\" + p.replace("/", "\\"),
+                "dist/assets/index-" + self.s(B64URL, 8) + ".js",
+                "static/js/main." + self.s(HEXD, 8) + ".chunk.js",
+            ]
+        )
+
+    def negatives(self, n: int):
+        r, s, en = self.r, self.s, self.en
+        corgea = json.loads((ROOT / "fixtures" / "corgea_issues.json").read_text())
+        leaves = []
+
+        def walk(node, key=None):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    walk(v, k)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v, key)
+            elif isinstance(node, (str, int)) and not isinstance(node, bool):
+                leaves.append((key, str(node)))
+
+        walk(corgea)
+        for key, value in leaves:
+            self.add("neg:corgea-issue-field", value, key=key)
+        for item in corgea["results"]:
+            self.add("neg:corgea-issue-json", json.dumps(item))
+        cwe = [
+            "Path Traversal",
+            "Cross-site Scripting",
+            "SQL Injection",
+            "Open Redirect",
+            "Server-Side Request Forgery",
+            "Hard-coded Credentials",
+            "Missing Authorization",
+            "Insecure Deserialization",
+            "Command Injection",
+            "Use of Weak Hash",
+            "Permissive Regular Expression",
+            "Cleartext Storage of Sensitive Information",
+            "Improper Certificate Validation",
+            "Exposure of Sensitive Information to an Unauthorized Actor",
+        ]
+        companies = [
+            "Acme Corp",
+            "Globex",
+            "Initech",
+            "Morgan Stanley",
+            "Charles Schwab",
+            "Wells Fargo",
+            "Johnson & Johnson",
+            "Ernst & Young",
+            "Ford Motor Company",
+            "Dell Technologies",
+            "Tommy Hilfiger",
+            "Ralph Lauren",
+            "Goldman Sachs",
+            "Jack Henry & Associates",
+            "Lincoln Financial",
+            "Grant Thornton",
+            "Edward Jones",
+        ]
+        code = [
+            "token_count = len(tokens)",
+            "def get_api_key(self):\n    return os.environ['API_KEY']",
+            "const password = req.body.password;",
+            "if (!token) throw new Error('missing token')",
+            "password_hash = make_password(raw_password)",
+            "TOKEN_EXPIRY_SECONDS = 3600",
+            "api_key: str = Field(..., description='API key')",
+            "headers = {'Authorization': f'Bearer {token}'}",
+            "password = getpass.getpass()",
+            "secret = settings.SECRET_KEY",
+            "auth_token = request.headers.get('X-Auth-Token')",
+            "self.assertEqual(response.status_code, 200)",
+            "import { useAuthToken } from '@/hooks/useAuthToken';",
+            "max_tokens: 4096",
+            "password: $" + "{DB_PASSWORD}",
+            "client_secret: <your-client-secret>",
+            "token = None",
+            "export GITHUB_TOKEN=$(gh auth token)",
+            "if user.check_password(password):",
+            "passwordInput.value = ''",
+            "for token in tokenizer(text):",
+            "SESSION_COOKIE_SECURE = True",
+            "secret_name = f'{env}-db-password'",
+            "kubectl create secret generic db --from-literal=password=$PASSWORD",
+            "jwt.decode(token, key, algorithms=['HS256'])",
+            "SELECT id, email, created_at FROM users WHERE created_at > '2024-01-01' LIMIT 50",
+            "logger.info('Processed %d tokens in %.2fs', count, elapsed)",
+            "password_reset_token_ttl = timedelta(hours=1)",
+            "uses: actions/checkout@v4",
+            "image: ghcr.io/corgea/worker@sha256:" + s(HEXD, 64),
+        ]
+        for _ in range(n):
+            u = str(uuid.UUID(int=r.getrandbits(128), version=4))
+            sha = s(HEXD, 40)
+            self.add(
+                "neg:uuid",
+                r.choice(["{v}", "scan_id={v}", "/api/v1/issues/{v}"]).replace(
+                    "{v}", u
+                ),
+            )
+            self.add(
+                "neg:git-sha",
+                r.choice(
+                    [
+                        sha,
+                        "commit " + sha,
+                        sha[:7],
+                        "git_sha: " + sha,
+                        "merge " + sha[:12] + " into main",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:hash",
+                r.choice(
+                    [
+                        s(HEXD, 32),
+                        s(HEXD, 64),
+                        s(HEXD, 128),
+                        "sha256:" + s(HEXD, 64),
+                        "sha512-" + base64.b64encode(r.randbytes(64)).decode(),
+                        "SHA256:"
+                        + base64.b64encode(r.randbytes(32)).decode().rstrip("="),
+                        ":".join(s(HEXD, 2) for _ in range(16)),
+                        'etag: "' + s(HEXD, 32) + '"',
+                        "fingerprint=" + s(HEXD, 64),
+                    ]
+                ),
+            )
+            self.add(
+                "neg:timestamp",
+                r.choice(
+                    [
+                        en.iso8601(),
+                        en.date_time().isoformat() + "Z",
+                        str(r.randint(16 * 10**8, 18 * 10**8)),
+                        str(r.randint(16 * 10**11, 18 * 10**11)),
+                        en.date_time().strftime("%a, %d %b %Y %H:%M:%S GMT"),
+                        en.date_time().strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
+                        en.date(),
+                    ]
+                ),
+            )
+            self.add(
+                "neg:numeric-id",
+                str(
+                    r.choice(
+                        [
+                            r.randint(1, 10**6),
+                            r.randint(10**9, 10**12),
+                            r.randint(10**17, 10**19),
+                        ]
+                    )
+                ),
+                key=r.choice(["id", "row_count", "line_number", "project_id", None]),
+            )
+            self.add("neg:path", self.path())
+            self.add(
+                "neg:vuln-id",
+                r.choice(
+                    [
+                        f"CWE-{r.randint(1, 1400)}",
+                        f"CVE-{r.randint(1999, 2026)}-{r.randint(1000, 99999)}",
+                        "GHSA-"
+                        + "-".join(s("23456789cfghjmpqrvwx", 4) for _ in range(3)),
+                        f"CWE-{r.randint(1, 1400)}: {r.choice(cwe)}",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:url",
+                r.choice(
+                    [
+                        f"https://github.com/{en.user_name()}/{self.identifier()}/pull/{r.randint(1, 9999)}",
+                        f"https://app.corgea.com/project/{r.randint(1, 999)}/issue/{uuid.UUID(int=r.getrandbits(128))}",
+                        f"https://api.{en.domain_name()}/v2/{self.identifier()}?page={r.randint(1, 9)}&per_page=50",
+                        f"git@github.com:{en.user_name()}/{self.identifier()}.git",
+                    ]
+                ),
+            )
+            self.add("neg:code", r.choice(code))
+            self.add("neg:identifier", self.identifier())
+            self.add(
+                "neg:version",
+                r.choice(
+                    [
+                        f"{r.randint(0, 20)}.{r.randint(0, 30)}.{r.randint(0, 99)}",
+                        f"v{r.randint(0, 9)}.{r.randint(0, 30)}.{r.randint(0, 9)}-rc.{r.randint(1, 5)}",
+                        f"python {r.choice(['3.10', '3.11', '3.12', '3.13'])}",
+                        f"lodash@4.17.{r.randint(1, 21)}",
+                    ]
+                ),
+            )
+            blob = base64.b64encode(r.randbytes(r.randint(60, 300))).decode()
+            self.add(
+                "neg:base64-in-code",
+                r.choice(
+                    [
+                        f'src="data:image/png;base64,{blob}"',
+                        f'integrity="sha384-{base64.b64encode(r.randbytes(48)).decode()}"',
+                        f"ssh-ed25519 {base64.b64encode(r.randbytes(51)).decode()} dev@laptop",
+                        f"FIXTURE = '{base64.b64encode(en.sentence().encode()).decode()}'",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:company",
+                r.choice(companies + [self.faker().company() for _ in range(3)]),
+                key=r.choice([None, "company_name", "organization"]),
+            )
+            self.add(
+                "neg:prose",
+                r.choice(
+                    [
+                        f"{r.choice(cwe)} in {self.path()} at line {r.randint(1, 900)}",
+                        f"Hardcoded password detected in {self.path()}; rotate the credential and load it from the environment.",
+                        f"User-controlled input flows into {self.identifier()}() without sanitization.",
+                        "The product uses a regular expression that does not sufficiently restrict the set of allowed values.",
+                        f"Scan {uuid.UUID(int=r.getrandbits(128))} finished with {r.randint(0, 99)} findings on branch main.",
+                        f"Will Update the {r.choice(cwe)} rule after the Code Review.",
+                        "Mark As Resolved",
+                        "Grant Access to Admins",
+                        f"Upgrade {self.identifier()} to {r.randint(1, 9)}.{r.randint(0, 9)}.{r.randint(0, 9)} to fix {r.choice(cwe)}.",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:scan-row",
+                json.dumps(
+                    {
+                        "id": str(uuid.UUID(int=r.getrandbits(128))),
+                        "project": self.identifier(),
+                        "branch": r.choice(
+                            ["main", "develop", "feature/" + self.identifier()]
+                        ),
+                        "git_sha": s(HEXD, 40),
+                        "created_at": en.iso8601() + "Z",
+                        "status": r.choice(["open", "fixed", "accepted_risk"]),
+                        "urgency": r.choice(["LO", "ME", "HI", "CR"]),
+                        "file": self.path(),
+                        "line_number": r.randint(1, 2000),
+                        "cwe": f"CWE-{r.randint(1, 1400)}",
+                        "token_count": r.randint(100, 9000),
+                    }
+                ),
+            )
+            rid = r.choice(
+                [
+                    s(B62, 24),
+                    "cus_" + s(B62, 14),
+                    "pi_" + s(B62, 24),
+                    s(B64, 64),
+                    "i-0" + s(HEXD, 16),
+                    s(B64URL, 22),
+                ]
+            )
+            rkey = r.choice(
+                [
+                    "request_id",
+                    "version_id",
+                    "object_id",
+                    "trace_id",
+                    "external_id",
+                    "etag",
+                    "checksum",
+                    "payment_intent",
+                ]
+            )
+            self.add(
+                "neg:random-id",
+                r.choice(
+                    ["{v}", f'"{rkey}": "{{v}}"', f"{rkey}={{v}} status=200"]
+                ).replace("{v}", rid),
+                key=r.choice([rkey, None]),
+            )
+            self.add(
+                "neg:log",
+                r.choice(
+                    [
+                        f"GET /api/v1/issues?page={r.randint(1, 9)} 200 {r.randint(2, 900)}ms",
+                        f"worker-{r.randint(1, 9)} processed job {s(HEXD, 24)} in {r.randint(10, 999)}ms",
+                        f"{en.iso8601()} WARN retrying request_id={uuid.UUID(int=r.getrandbits(128))} attempt={r.randint(1, 5)}",
+                        f"listening on 0.0.0.0:{r.randint(1000, 9999)}",
+                        f"connected to 127.0.0.1:{r.randint(1000, 9999)}",
+                    ]
+                ),
+            )
+
+    def real_negatives(self, n: int):
+        """Real text with no secrets or PII planted: lines of the standard library and this repo's uv.lock.
+        Unlabeled, so every redaction counts as false; docstrings do name real people (authors)."""
+        stdlib = Path(sysconfig.get_paths()["stdlib"])
+        lines = []
+        for path in sorted(stdlib.glob("*.py")):
+            lines += [
+                line.strip()
+                for line in path.read_text(errors="ignore").splitlines()
+                if len(line.strip()) >= 20
+            ]
+        for line in self.r.sample(lines, n):
+            self.add("neg:real-stdlib-line", line)
+        lock = [
+            line.strip()
+            for line in (ROOT.parent / "uv.lock").read_text().splitlines()
+            if len(line.strip()) >= 20
+        ]
+        for line in self.r.sample(lock, min(n, len(lock))):
+            self.add("neg:real-uv-lock-line", line)
+
+    def write(self, file: Path):
+        self.r.shuffle(self.records)
+        file.parent.mkdir(exist_ok=True)
+        with file.open("w") as out:
+            for i, record in enumerate(self.records):
+                out.write(json.dumps({"id": i, **record}) + "\n")
+
+
+def main():
+    for split, seed in (("dev", 1), ("test", 2)):
+        g = Gen(seed)
+        g.pii(150)
+        g.persons(300)
+        g.secrets(40)
+        g.negatives(200)
+        g.real_negatives(1000)
+        g.write(ROOT / "data" / f"{split}.jsonl")
+        print(f"{split}: {len(g.records)} records")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,59 +1,56 @@
 [project]
 name = "inconnu"
-version = "0.1.1"
-description = "GDPR-compliant data privacy tool for entity redaction and de-anonymization"
+version = "0.2.0"
+description = "Fast one-way redaction of PII and secrets in text and JSON"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     {name = "0xjgv", email = "juans.gaitan@gmail.com"}
 ]
 license = {text = "MIT"}
-keywords = ["nlp", "privacy", "gdpr", "anonymization", "pseudonymization", "spacy", "redaction", "pii"]
+keywords = ["privacy", "redaction", "pii", "secrets", "dlp", "gdpr"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Intended Audience :: Legal Industry",
-    "Intended Audience :: Healthcare Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Topic :: Security",
-    "Topic :: Text Processing :: Linguistic",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "phonenumbers>=9.0.20",
-    "spacy>=3.8.11",
+    "phonenumberslite>=9.0.43",
 ]
 
 [project.urls]
 Homepage = "https://github.com/0xjgv/inconnu"
-Documentation = "https://github.com/0xjgv/inconnu#readme"
 Repository = "https://github.com/0xjgv/inconnu"
 Issues = "https://github.com/0xjgv/inconnu/issues"
 
-# Note: spaCy models are not included as optional dependencies to avoid downloading
-# all models when running `uv lock`. Use the `inconnu-download` command or the
-# Makefile targets (make install-models) to install models as needed.
-
 [project.scripts]
-inconnu-download = "inconnu.model_installer:main"
+inconnu = "inconnu.cli:main"
 
 [dependency-groups]
 dev = [
-    "ipykernel>=7.1.0",
-    "pytest>=9.0.2",
-    "pytest-asyncio>=1.3.0",
-    "ruff>=0.14.9",
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
 ]
+eval = [
+    "detect-secrets>=1.5.0",
+    "faker>=40.54.0",
+]
+
+[tool.ruff]
+extend-exclude = ["evals/.baseline-venv"]
 
 [tool.ruff.lint]
 extend-select = ["I", "S"] # I: isort, S: bandit
 select = ["E4", "E7", "E9", "F"]
 ignore = ["S101"] # assert
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S603", "S105", "S106"]
+"evals/*" = ["S311", "S603", "S105", "S106"]
 
 [build-system]
 requires = ["hatchling"]

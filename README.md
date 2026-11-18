@@ -1,518 +1,123 @@
 # Inconnu
 
-[![GitHub](https://img.shields.io/github/stars/0xjgv/inconnu)](https://github.com/0xjgv/inconnu)
-[![inconnu.ai](https://img.shields.io/badge/website-inconnu.ai-blue)](https://inconnu.ai)
 [![PyPI](https://img.shields.io/pypi/v/inconnu)](https://pypi.org/project/inconnu/)
 
-## What is Inconnu?
-
-Inconnu is a GDPR-compliant data privacy tool designed for entity redaction and de-anonymization. It provides cutting-edge NLP-based tools for anonymizing and pseudonymizing text data while maintaining data utility, ensuring your business meets stringent privacy regulations.
-
-## Why Inconnu?
-
-1. **Seamless Compliance**: Inconnu simplifies the complexity of GDPR and other privacy laws, making sure your data handling practices are always in line with legal standards.
-
-2. **State-of-the-Art NLP**: Utilizing advanced spaCy models and custom entity recognition, Inconnu ensures that personal identifiers are completely detected and properly handled.
-
-3. **Transparency and Trust**: Complete processing documentation with timestamping, hashing, and entity mapping for full audit trails.
-
-4. **Reversible Processing**: Support for both anonymization and pseudonymization with complete de-anonymization capabilities.
-
-5. **Performance Optimized**: Fast processing with singleton pattern optimization and configurable text length limits.
-
-## Installation
-
-### Prerequisites
-
-- Python 3.10 or higher
-- pip (Python package manager)
-
-### Install from PyPI
-
-```bash
-# Using pip
-pip install inconnu
-
-# Using UV (Recommended)
-uv add inconnu
-```
-
-**Note**: Language models are NOT included as optional dependencies. You'll need to download them separately using the `inconnu-download` command after installation (see below).
-
-### Download Language Models
-
-After installing Inconnu, use the `inconnu-download` command to download spaCy language models:
-
-```bash
-# Download default (small) models
-inconnu-download en              # English
-inconnu-download de              # German
-inconnu-download en de fr        # Multiple languages
-inconnu-download all             # All default models
-
-# Download specific model sizes
-inconnu-download en --size large       # Large English model
-inconnu-download en --size transformer # Transformer model (English only)
-
-# List available models and check what's installed
-inconnu-download --list
-
-# Upgrade existing models
-inconnu-download en --upgrade
-
-# Get help for UV environments
-inconnu-download --uv-help
-```
-
-#### How Model Installation Works
-
-1. **No Optional Dependencies**: spaCy models are NOT included as pip/uv optional dependencies to avoid unnecessary downloads during dependency resolution
-2. **On-Demand Downloads**: The `inconnu-download` command downloads only the models you need
-3. **Smart Environment Detection**: Automatically detects UV environments and provides appropriate guidance
-4. **Verification**: Checks if models are already installed before downloading
-
-#### Available Model Sizes
-
-- **Small (sm)**: Default, fast processing, ~15-50MB, good for high-volume
-- **Medium (md)**: Better accuracy, ~50-200MB, moderate speed
-- **Large (lg)**: High accuracy, ~200-600MB, slower processing
-- **Transformer (trf)**: Highest accuracy, ~400MB+, GPU-optimized (English only)
-
-#### Alternative: Direct spaCy Download
-
-You can also use spaCy directly if preferred:
-
-```bash
-python -m spacy download en_core_web_sm   # English small
-python -m spacy download de_core_news_lg  # German large
-```
-
-### Install from Source
-
-1. **Clone the repository**:
-
-   ```bash
-   git clone https://github.com/0xjgv/inconnu.git
-   cd inconnu
-   ```
-
-2. **Install with UV (recommended for development)**:
-
-   ```bash
-   uv sync                      # Install dependencies
-   inconnu-download en de       # Download language models
-   make test                    # Run tests
-   ```
-
-3. **Or install with pip**:
-
-   ```bash
-   pip install -e .     # Install in editable mode
-   python -m spacy download en_core_web_sm
-   ```
-
-### Development Commands
-
-For development, the Makefile provides convenience targets:
-
-```bash
-make install        # Install dependencies
-make test           # Run tests (auto-downloads required models)
-make check          # Run format check, lint, and tests
-make lint           # Check code with ruff
-make format         # Format code
-make clean          # Format, lint, fix, and clean cache
-```
-
-To download additional language models, use the CLI directly:
-
-```bash
-uv run inconnu-download en de fr   # Download specific models
-uv run inconnu-download all        # Download all models
-uv run inconnu-download --list     # List available models
-```
-
-### Using Different Models in Code
-
-To use a different model size, first download it, then specify it when initializing:
+Inconnu redacts PII and secrets from text and JSON, one way, fast enough to run on every query result an AI agent
+sees. The core path is regular expressions, validators (Luhn, IBAN mod-97, `ipaddress`, `phonenumbers`) and the
+standard library. It needs no model and no network.
 
 ```python
-from inconnu import Inconnu
-from inconnu.nlp.entity_redactor import SpacyModels
+from inconnu import redact, redact_batch, redact_json
 
-# First, download the model you want
-# $ inconnu-download en --size large
-
-# Then use it in your code
-inconnu = Inconnu(
-    language="en",
-    model_name=SpacyModels.EN_CORE_WEB_LG  # Use large model
+text, findings = redact(
+    "Ping jane.doe@example.org or +1 415-555-2671 from 203.0.113.42"
 )
-
-# For highest accuracy (transformer model)
-inconnu_trf = Inconnu(
-    language="en",
-    model_name=SpacyModels.EN_CORE_WEB_TRF
-)
+# text     -> "Ping [EMAIL] or [PHONE] from [IP]"
+# findings -> [{"type": "EMAIL", "start": 5, "end": 25, "confidence": 0.95, "detector": "regex"}, ...]
 ```
 
-**Model Selection Guide:**
+Findings carry the type, offsets into the input, a confidence and the detector. They never carry the value.
 
-- `en_core_web_sm`: Fast processing, good for high-volume
-- `en_core_web_lg`: Better accuracy, moderate speed
-- `en_core_web_trf`: Highest accuracy, GPU-optimized (recommended for sensitive data)
-
-For a complete list of supported models, run `inconnu-download --list`
-
-## Development Setup
-
-### Available Commands
+## Install
 
 ```bash
-make install          # Install all dependencies
-make test             # Run full test suite (downloads required models)
-make check            # Run format check, lint, and tests
-make lint             # Check code with ruff
-make format           # Format code with ruff
-make fix              # Auto-fix linting issues
-make clean            # Format, lint, fix, and clean cache
-make update-deps      # Update dependencies
-
-# Download language models via CLI
-uv run inconnu-download en de it   # Download specific models
-uv run inconnu-download all        # Download all supported models
+uv add inconnu        # or: pip install inconnu
 ```
 
-### Running Tests
+Python 3.10 or newer. The only dependency is `phonenumberslite` (pure Python, 2.7 MB).
+
+## API
+
+- `redact(text, key=None, scorer=None) -> (redacted_text, findings)`. `key` is the column or JSON key the text came
+  from; it lets a value be judged by its column (a `password` cell, a `phone` cell, a `request_id` cell).
+- `redact_batch(cells, keys=None, scorer=None)` redacts many short texts, such as the cells of a query result, and
+  asks the scorer (if any) once per distinct uncertain shape.
+- `redact_json(data, scorer=None)` redacts every string and integer in a JSON value, keeping its structure. Dict
+  keys are the context for their values. A dict with `rows` (lists) and `cols` or `columns` (names, or objects
+  with a `name`) gives each cell its column name. Keys are never redacted.
+
+## CLI
 
 ```bash
-# Run all tests
-make test
-
-# Run with verbose output
-uv run pytest -vv
-
-# Run specific test file
-uv run pytest tests/test_inconnu.py -vv
-
-# Run specific test class
-uv run pytest tests/test_inconnu.py::TestInconnuPseudonymizer -vv
+echo "mail jane.doe@example.org" | inconnu            # text in, text out
+inconnu --json < result.json > redacted.json          # JSON in, JSON out
 ```
 
-## Usage Examples
+Exit 0 on success, 2 when `--json` input is not JSON, 1 on any other error. On failure nothing is written to
+stdout and the error message never quotes the input, so a caller that forwards stdout cannot leak unredacted data.
+A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=..., capture_output=True)`.
 
-### Basic Text Anonymization
+## Placeholders
+
+| Placeholder | Detects |
+|---|---|
+| `[EMAIL]` | email addresses |
+| `[PHONE]` | phone numbers: international (+ or 00), or national formats valid for the US and 15 other regions |
+| `[IBAN]` | IBANs that pass mod-97 |
+| `[CARD]` | payment card numbers that pass Luhn with a known issuer prefix |
+| `[SSN]` | US Social Security numbers |
+| `[IP]` | IPv4 and IPv6 addresses (not loopback, 0.0.0.0 or netmasks) |
+| `[PERSON]` | person names: first-name and surname gazetteers, titles (Mr., Dr.), name columns |
+| `[SECRET:<kind>]` | `aws-access-key`, `github-token`, `gitlab-token`, `anthropic-key`, `openai-key`, `slack-token`, `slack-webhook`, `discord-webhook`, `stripe-key`, `google-api-key`, `npm-token`, `pypi-token`, `sendgrid-key`, `jwt`, `private-key`, `password-hash`, `url-password`, `bearer`, `basic-auth`, and `generic` for values of secret-named keys (`password=`, `client_secret:`, `"apiKey": ...`) |
+| `[SECRET:entropy]` | unknown secrets: long tokens that look random for their charset |
+
+The entropy detector leaves alone UUIDs, git SHAs and other hex hashes (unless a secret-like key is next to them),
+digests (`sha256:`, `sha512-`), data URIs, public SSH keys, base64-encoded sentences, identifiers, paths, wheel tags,
+and values under ID-like keys (`request_id`, `etag`, `checksum`). Company names are not redacted on purpose; names of
+companies that are also person names (Morgan Stanley) can be.
+
+## Confidence and the optional scorer
+
+Every candidate gets a confidence. Below 0.5 it is dropped; at 0.8 or above it is redacted. In between (a bare
+word under `PASSWORD=`, a random token with no key nearby, a 16-digit run that passes Luhn, a name with an unknown
+first name) it is redacted unless a `Scorer` says it may stay.
 
 ```python
-from inconnu import Inconnu
+from inconnu import Scorer, redact
 
-# Simple initialization - no Config class required!
-inconnu = Inconnu()  # Uses sensible defaults
-
-# Simple anonymization - just the redacted text
-text = "John Doe from New York visited Paris last summer."
-redacted = inconnu.redact(text)
-print(redacted)
-# Output: "[PERSON] from [GPE] visited [GPE] [DATE]."
-
-# Pseudonymization - get both redacted text and entity mapping
-redacted_text, entity_map = inconnu.pseudonymize(text)
-print(redacted_text)
-# Output: "[PERSON_0] from [GPE_0] visited [GPE_1] [DATE_0]."
-print(entity_map)
-# Output: {'[PERSON_0]': 'John Doe', '[GPE_0]': 'New York', '[GPE_1]': 'Paris', '[DATE_0]': 'last summer'}
-
-# Advanced usage with full metadata (original API)
-result = inconnu(text=text)
-print(result.redacted_text)
-print(f"Processing time: {result.processing_time_ms:.2f}ms")
+redact(text, scorer=Scorer())  # or: INCONNU_SCORER=1 inconnu ...
 ```
 
-### Async and Batch Processing
-
-```python
-import asyncio
-
-# Async processing for non-blocking operations
-async def process_texts():
-    inconnu = Inconnu()
-
-    # Single async processing
-    text = "John Doe called from +1-555-123-4567"
-    redacted = await inconnu.redact_async(text)
-    print(redacted)  # "[PERSON] called from [PHONE_NUMBER]"
-
-    # Batch async processing
-    texts = [
-        "Alice Smith visited Berlin",
-        "Bob Jones went to Tokyo",
-        "Carol Brown lives in Paris"
-    ]
-    results = await inconnu.redact_batch_async(texts)
-    for result in results:
-        print(result)
-
-asyncio.run(process_texts())
-```
-
-### Customer Service Email Processing
-
-```python
-# Process customer service email with personal data
-customer_email = """
-Dear SolarTech Team,
-
-I am Max Mustermann living at Hauptstraße 50, 80331 Munich, Germany.
-My phone number is +49 89 1234567 and my email is max@example.com.
-I need to return my solar modules (Order: ST-78901) due to relocation.
-
-Best regards,
-Max Mustermann
-"""
-
-# Simple redaction
-redacted = inconnu.redact(customer_email)
-print(redacted)
-# Personal identifiers are automatically detected and redacted
-```
-
-### Multi-language Support
-
-```python
-# German language processing - simplified!
-inconnu_de = Inconnu("de")  # Just specify the language
-
-german_text = "Herr Schmidt aus München besuchte Berlin im März."
-redacted = inconnu_de.redact(german_text)
-print(redacted)
-# Output: "[PERSON] aus [GPE] besuchte [GPE] [DATE]."
-```
-
-### Custom Entity Recognition
-
-```python
-from inconnu import Inconnu, NERComponent
-import re
-
-# Add custom entity recognition
-custom_components = [
-    NERComponent(
-        label="CREDIT_CARD",
-        pattern=re.compile(r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b'),
-        processing_function=None
-    )
-]
-
-# Simple initialization with custom components
-inconnu_custom = Inconnu(
-    language="en",
-    custom_components=custom_components
-)
-
-# Test custom entity detection
-text = "My card number is 1234 5678 9012 3456"
-redacted = inconnu_custom.redact(text)
-print(redacted)  # "My card number is [CREDIT_CARD]"
-```
-
-### Context Manager for Resource Management
-
-```python
-# Automatic resource cleanup
-with Inconnu() as inc:
-    redacted = inc.redact("Sensitive data about John Doe")
-    print(redacted)
-# Resources automatically cleaned up
-```
-
-### Error Handling
-
-```python
-from inconnu import Inconnu, TextTooLongError, ProcessingError
-
-inconnu = Inconnu(max_text_length=100)  # Set small limit for demo
-
-try:
-    long_text = "x" * 200  # Exceeds limit
-    result = inconnu.redact(long_text)
-except TextTooLongError as e:
-    print(f"Text too long: {e}")
-    # Error includes helpful suggestions for resolution
-except ProcessingError as e:
-    print(f"Processing failed: {e}")
-```
-
-## Use Cases
-
-### 1. **Customer Support Systems**
-
-Automatically redact personal information from customer service emails, chat logs, and support tickets while maintaining context for analysis.
-
-### 2. **Legal Document Processing**
-
-Anonymize legal documents, contracts, and case files for training, analysis, or public release while ensuring GDPR compliance.
-
-### 3. **Medical Record Anonymization**
-
-Process medical records and research data to remove patient identifiers while preserving clinical information for research purposes.
-
-### 4. **Financial Transaction Analysis**
-
-Redact personal financial information from transaction logs and banking communications for fraud analysis and compliance reporting.
-
-### 5. **Survey and Feedback Analysis**
-
-Anonymize customer feedback, survey responses, and user-generated content for analysis while protecting respondent privacy.
-
-### 6. **Training Data Preparation**
-
-Prepare training datasets for machine learning models by removing personal identifiers from text data while maintaining semantic meaning.
-
-## Supported Entity Types
-
-- **Standard Entities**: PERSON, GPE (locations), DATE, ORG, MONEY
-- **Custom Entities**: EMAIL, IBAN, PHONE_NUMBER
-- **Enhanced Detection**: Person titles (Dr, Mr, Ms), international phone numbers
-- **Multilingual**: English, German, Italian, Spanish, and French language support
-
-## Features
-
-- **Robust Entity Detection**: Advanced NLP with spaCy models and custom regex patterns
-- **Dual Processing Modes**: Anonymization (`[PERSON]`) and pseudonymization (`[PERSON_0]`)
-- **Complete Audit Trail**: Timestamping, hashing, and processing metadata
-- **Reversible Processing**: Full de-anonymization capabilities with entity mapping
-- **Performance Optimized**: Singleton pattern for model loading, configurable limits
-- **GDPR Compliant**: Built-in data retention policies and compliance features
-
-## Contributing
-
-We welcome contributions to Inconnu! As an open source project, we believe in the power of community collaboration to build better privacy tools.
-
-### How to Contribute
-
-#### 1. **Bug Reports & Feature Requests**
-
-- Open an issue on GitHub with detailed descriptions
-- Include code examples and expected vs actual behavior
-- Tag issues appropriately (bug, enhancement, documentation)
-
-#### 2. **Code Contributions**
-
-```bash
-# Fork the repository and create a feature branch
-git checkout -b feature/your-feature-name
-
-# Make your changes and ensure tests pass
-make test
-make lint
-
-# Submit a pull request with:
-# - Clear description of changes
-# - Test coverage for new features
-# - Updated documentation if needed
-```
-
-#### 3. **Development Guidelines**
-
-- Follow existing code style and patterns
-- Add tests for new functionality
-- Update documentation for user-facing changes
-- Ensure GDPR compliance considerations are addressed
-
-#### 4. **Areas for Contribution**
-
-- **Language Support**: Add new language models and region-specific entity detection
-- **Custom Entities**: Implement detection for industry-specific identifiers
-- **Performance**: Optimize processing speed and memory usage
-- **Documentation**: Improve examples, tutorials, and API documentation
-- **Testing**: Expand test coverage and edge case handling
-
-#### 5. **Code Review Process**
-
-- All contributions require code review
-- Automated tests must pass
-- Documentation updates are appreciated
-- Maintain backward compatibility when possible
-
-### Community Guidelines
-
-- **Be Respectful**: Foster an inclusive environment for all contributors
-- **Privacy First**: Always consider privacy implications of changes
-- **Security Minded**: Report security issues privately before public disclosure
-- **Quality Focused**: Prioritize code quality and comprehensive testing
-
-### Getting Help
-
-- **Discussions**: Use GitHub Discussions for questions and ideas
-- **Issues**: Report bugs and request features through GitHub Issues
-- **Documentation**: Check existing docs and contribute improvements
-
-Thank you for helping make Inconnu a better tool for data privacy and GDPR compliance!
-
-## Publishing to PyPI
-
-### For Maintainers
-
-To publish a new version to PyPI:
-
-1. **Configure Trusted Publisher** (first time only):
-   - Go to <https://pypi.org/manage/project/inconnu/settings/publishing/>
-   - Add a new trusted publisher:
-     - Publisher: GitHub
-     - Organization/username: `0xjgv`
-     - Repository name: `inconnu`
-     - Workflow name: `publish.yml`
-     - Environment name: `pypi` (optional but recommended)
-   - For Test PyPI, do the same at <https://test.pypi.org> with environment name: `testpypi`
-
-2. **Update Version**: Update the version in `pyproject.toml` and `inconnu/__init__.py`
-
-3. **Create a Git Tag**:
-
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-4. **GitHub Actions**: The workflow will automatically:
-   - Run tests on Python 3.10, 3.11, and 3.12
-   - Build the package
-   - Publish to PyPI using Trusted Publisher (no API tokens needed!)
-   - Generate PEP 740 attestations for security
-
-5. **Test PyPI Publishing**:
-   - Use workflow_dispatch to manually trigger Test PyPI publishing
-   - Go to Actions → Publish to PyPI → Run workflow
-
-### Manual Publishing (if needed)
-
-```bash
-# Build the package
-uv build
-
-# Check the package
-twine check dist/*
-
-# Upload to Test PyPI (requires API token)
-twine upload --repository testpypi dist/*
-
-# Upload to PyPI (requires API token)
-twine upload dist/*
-```
-
-### GitHub Environments (Recommended)
-
-Configure GitHub environments for additional security:
-
-1. Go to Settings → Environments
-2. Create `pypi` and `testpypi` environments
-3. Add protection rules:
-   - Required reviewers
-   - Restrict to specific tags (e.g., `v*`)
-   - Add deployment branch restrictions
-
-## Additional Resources
-
-- [spaCy Models Directory](https://spacy.io/models) - Complete list of available language models
-- [spaCy Model Releases](https://github.com/explosion/spacy-models) - GitHub repository for model updates
-- [pgeocode](https://pypi.org/project/pgeocode/) - Geographic location processing (potential future integration)
+The scorer is off by default. It asks a System One `noul` question over the provider chain used by
+[s1r](https://github.com/0xjgv/s1r): TypeSafe Jev, then OpenRouter, then Respan (keys `TYPESAFE_API_KEY`,
+`OPENROUTER_API_KEY`, `RESPAN_API_KEY`), 8 s per request and an 8 s budget per batch. It fails closed: an error, a
+timeout, a missing key or a spent budget means redact. It never sends a value: only the type, length, character
+classes, entropy, a masked shape (`(999) 999-9999`, or the first four characters as `Aa9-` for secrets) and the key
+or column name.
+
+## Evals
+
+`make eval` generates labeled data (synthetic positives for every type; negatives shaped like Corgea data plus real
+standard-library and `uv.lock` lines), scores inconnu, detect-secrets and a regex-only phone detector, prints the
+tables and writes `evals/results/`. `make eval-baseline` adds inconnu 0.1.1 and raw spaCy `en_core_web_sm` PERSON
+entities, run in their own venv. `make eval-scorer` checks the scorer live on the dev split (at most 120 calls).
+Thresholds and allowlists were tuned on the dev split; the numbers below are the held-out test split
+(`evals/results/test.md`).
+
+| type | precision | recall | 0.1.1 precision | 0.1.1 recall |
+|---|---|---|---|---|
+| EMAIL | 0.997 | 1.000 | 0.865 | 1.000 |
+| PHONE | 0.996 | 0.937 | 0.651 | 0.927 |
+| IBAN | 1.000 | 1.000 | 0.993 | 1.000 |
+| CARD | 0.986 | 0.973 | - | 0.000 |
+| SSN | 1.000 | 1.000 | - | 0.000 |
+| IP | 1.000 | 1.000 | - | 0.000 |
+| PERSON | 0.933 | 0.762 | 0.395 | 0.725 |
+| PERSON, raw spaCy en_core_web_sm | 0.381 | 0.730 | | |
+| SECRET (21 kinds, n=1370) | 0.984 | 0.990 | - | 0.239 (any label) |
+| SECRET, detect-secrets 1.5 | 0.695 | 0.454 | | |
+
+Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.009 (0.1.1: 0.519); the entropy detector alone: 0.004. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.762: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.919: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted).
+
+Latency on Python 3.14.10 (arm64): p50 15.5 µs and p99 147 µs per cell under 200 characters; p50 444.5 µs and p99 1290 µs per KB; a 10k-cell batch in 0.231 s (43350 cells/s). inconnu 0.1.1 took 0.77 ms per record on the same data.
+
+## Migrating from 0.1
+
+0.2.0 is a rewrite. `Inconnu`, `Config`, pseudonymization and `restore()`, the spaCy pipeline, custom NER components,
+the healthcare, legal and education patterns, async helpers and `inconnu-download` are gone. Use
+`redact()` / `redact_batch()` / `redact_json()`. See [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+MIT. Name gazetteers: US Census Bureau 1990 name files (public domain) and
+[popular-names-by-country-dataset](https://github.com/sigpwned/popular-names-by-country-dataset) (CC0).

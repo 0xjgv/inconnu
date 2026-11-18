@@ -1,0 +1,750 @@
+{
+ "summary": {
+  "descriptions_in_band": 252,
+  "scored": 120,
+  "seconds_per_call": 0.22,
+  "failed_calls": 0,
+  "by_threshold": {
+   "0.3": {
+    "true_positives_cleared (leaks)": 0,
+    "false_positives_cleared": 0,
+    "true_positives_scored": 112,
+    "false_positives_scored": 26
+   },
+   "0.5": {
+    "true_positives_cleared (leaks)": 0,
+    "false_positives_cleared": 3,
+    "true_positives_scored": 112,
+    "false_positives_scored": 26
+   },
+   "0.7": {
+    "true_positives_cleared (leaks)": 0,
+    "false_positives_cleared": 3,
+    "true_positives_scored": 112,
+    "false_positives_scored": 26
+   }
+  }
+ },
+ "per_description": [
+  {
+   "type": "CARD",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.31
+  },
+  {
+   "type": "CARD",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.75
+  },
+  {
+   "type": "CARD",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.76
+  },
+  {
+   "type": "CARD",
+   "tp": 0,
+   "fp": 2,
+   "p": 0.43
+  },
+  {
+   "type": "PERSON",
+   "tp": 0,
+   "fp": 5,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 0,
+   "fp": 4,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.81
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.85
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.76
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.83
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.85
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.86
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.87
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.87
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.77
+  },
+  {
+   "type": "SECRET:entropy",
+   "tp": 0,
+   "fp": 1,
+   "p": 0.87
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.75
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.73
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.73
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.76
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.75
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.77
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.73
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.78
+  },
+  {
+   "type": "CARD",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.76
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.78
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.79
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "CARD",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 3,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 3,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.8
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.84
+  },
+  {
+   "type": "PERSON",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.85
+  },
+  {
+   "type": "PERSON",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.82
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.86
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  },
+  {
+   "type": "PERSON",
+   "tp": 2,
+   "fp": 0,
+   "p": 0.83
+  },
+  {
+   "type": "PERSON",
+   "tp": 1,
+   "fp": 0,
+   "p": 0.81
+  }
+ ]
+}

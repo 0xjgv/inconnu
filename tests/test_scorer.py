@@ -1,0 +1,90 @@
+"""The uncertain band: off by default, fail closed, and no raw value leaves the machine."""
+
+import json
+import urllib.request
+
+import pytest
+
+from inconnu import Scorer, redact
+
+BAND_TEXT = (
+    "PASSWORD=hunter"  # bare identifier value: confidence falls in the uncertain band
+)
+VALUE = "hunter"
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("network used")
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+
+
+@pytest.fixture
+def keys(monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "k1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k2")
+    monkeypatch.setenv("RESPAN_API_KEY", "k3")
+
+
+def test_band_redacts_without_scorer(no_network):
+    redacted, findings = redact(BAND_TEXT)
+    assert redacted == "PASSWORD=[SECRET:generic]"
+    assert findings[0]["detector"] == "keyword"
+
+
+class Reply:
+    def __init__(self, body):
+        self.body = json.dumps(body).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self.body
+
+
+def test_scorer_can_clear_band_and_sends_no_raw_value(monkeypatch, keys):
+    sent = []
+
+    def fake_urlopen(request, timeout):
+        sent.append(request.data.decode())
+        questions = json.loads(request.data)["questions"]
+        return Reply(
+            {"answers": {q: {"type": "noul", "noul": 0.01} for q in questions}}
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    redacted, _ = redact(BAND_TEXT, scorer=Scorer())
+    assert redacted == BAND_TEXT
+    assert sent and all(VALUE not in body and BAND_TEXT not in body for body in sent)
+
+
+@pytest.mark.parametrize("failure", [TimeoutError, OSError, ValueError])
+def test_scorer_fails_closed(monkeypatch, keys, failure):
+    def broken(request, timeout):
+        raise failure("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", broken)
+    assert redact(BAND_TEXT, scorer=Scorer())[0] == "PASSWORD=[SECRET:generic]"
+
+
+def test_scorer_without_keys_fails_closed(monkeypatch, no_network):
+    for name in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "RESPAN_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert redact(BAND_TEXT, scorer=Scorer())[0] == "PASSWORD=[SECRET:generic]"
+
+
+def test_scorer_bad_answer_fails_closed(monkeypatch, keys):
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda request, timeout: Reply({"answers": {}})
+    )
+    assert redact(BAND_TEXT, scorer=Scorer())[0] == "PASSWORD=[SECRET:generic]"
+
+
+def test_certain_findings_never_reach_scorer(no_network, keys):
+    assert redact("jane.doe@example.org", scorer=Scorer())[0] == "[EMAIL]"

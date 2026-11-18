@@ -1,0 +1,102 @@
+"""Live check of the optional Scorer on the dev split's uncertain band, with a hard cap on calls.
+
+Reads TYPESAFE_API_KEY / OPENROUTER_API_KEY / RESPAN_API_KEY from the environment or ~/.config/s1r/.env.
+Before any call it asserts that no description contains its candidate's value (or any 6-character piece of it).
+
+Usage: python evals/scorer_eval.py [--max-calls 120]   (writes evals/results/scorer.json)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import time
+from pathlib import Path
+
+from run import family, load
+
+from inconnu.core import HIGH, _spans
+from inconnu.scorer import Scorer, describe
+
+ROOT = Path(__file__).parent
+KEYS = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "RESPAN_API_KEY")
+
+
+def load_keys():
+    env = (
+        Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+        / "s1r"
+        / ".env"
+    )
+    if env.exists():
+        for line in env.read_text().splitlines():
+            name, _, value = line.partition("=")
+            if name.strip() in KEYS and not os.environ.get(name.strip()):
+                os.environ[name.strip()] = value.strip().strip("\"'")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-calls", type=int, default=120)
+    args = parser.parse_args()
+    load_keys()
+    band = {}  # description -> [true positives, false positives, type]
+    for r in load("dev"):
+        for s in _spans(r["text"], r["key"]):
+            if s[3] >= HIGH:
+                continue
+            value = r["text"][s[0] : s[1]]
+            description = describe(r["text"], s[0], s[1], s[2], r["key"])
+            pieces = (
+                {value[i : i + 6] for i in range(max(len(value) - 5, 1))}
+                if len(value) >= 6
+                else {value}
+            )
+            assert not any(
+                p in description for p in pieces if len(p) >= 4 and not p.isdigit()
+            ), "raw value in payload"
+            tp = any(
+                s[0] < g["end"] and g["start"] < s[1] and family(s[2]) == g["type"]
+                for g in r["spans"]
+            )
+            entry = band.setdefault(description, [0, 0, s[2]])
+            entry[0 if tp else 1] += 1
+    # Every description with a false positive first (what the scorer could clear), then the rest.
+    order = sorted(band, key=lambda d: (band[d][1] == 0, d))[: args.max_calls]
+    scorer = Scorer(budget_s=10_000, max_calls=args.max_calls)
+    scored, started = [], time.monotonic()
+    for description in order:
+        try:
+            p = scorer._probability(description, time.monotonic() + 30)
+        except Exception as exc:  # noqa: BLE001 counted as a fail-closed answer
+            p = None
+            print("failed:", type(exc).__name__)
+        tp, fp, kind = band[description]
+        scored.append({"type": kind, "tp": tp, "fp": fp, "p": p})
+    elapsed = time.monotonic() - started
+    summary = {
+        "descriptions_in_band": len(band),
+        "scored": len(scored),
+        "seconds_per_call": round(elapsed / max(len(scored), 1), 2),
+        "failed_calls": sum(s["p"] is None for s in scored),
+        "by_threshold": {},
+    }
+    for threshold in (0.3, 0.5, 0.7):
+        keep = [s for s in scored if s["p"] is not None and s["p"] < threshold]
+        summary["by_threshold"][threshold] = {
+            "true_positives_cleared (leaks)": sum(s["tp"] for s in keep),
+            "false_positives_cleared": sum(s["fp"] for s in keep),
+            "true_positives_scored": sum(s["tp"] for s in scored),
+            "false_positives_scored": sum(s["fp"] for s in scored),
+        }
+    out = {
+        "summary": summary,
+        "per_description": [{k: v for k, v in s.items()} for s in scored],
+    }
+    (ROOT / "results" / "scorer.json").write_text(json.dumps(out, indent=1) + "\n")
+    print(json.dumps(summary, indent=1))
+
+
+if __name__ == "__main__":
+    main()
