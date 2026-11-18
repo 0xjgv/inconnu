@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 
 def run(args, stdin, env=None):
     env = {**(os.environ if env is None else env), "PYTHONIOENCODING": "utf-8:strict"}
@@ -58,6 +60,9 @@ def test_json_mode_rejects_nan_output():
     assert result.stdout == ""
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="the integer digit limit arrived in 3.11"
+)
 def test_json_mode_rejects_input_python_cannot_parse():
     result = run(
         ["--json"], '{"x": 1' + "1" * 5000 + "}"

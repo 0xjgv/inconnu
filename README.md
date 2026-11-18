@@ -46,7 +46,7 @@ inconnu --json < result.json > redacted.json          # JSON in, JSON out
 
 Exit 0 on success, 2 when `--json` input is not JSON, 1 on any other error. On failure nothing is written to
 stdout and the error message never quotes the input, so a caller that forwards stdout cannot leak unredacted data.
-A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=payload, capture_output=True, text=True)`.
+A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=json.dumps(result), capture_output=True, text=True)`.
 
 ## Placeholders
 
@@ -112,7 +112,7 @@ Lowest secret recall: entropy 0.954. False-redaction rate (share of negative rec
 
 Scorer, live on 120 of 246 distinct dev-band descriptions (every one with a false positive, then CARD, PERSON, PHONE and SECRET:entropy true positives in turn; 0.19 s per call, 0 failures): at the 0.5 threshold it cleared 3 of 24 false positives and 0 of 115 true positives. It is cautious: it adds little precision and, on this sample, no leaks (`evals/results/scorer.json`).
 
-Latency on Python 3.14.10 (arm64): p50 12.8 µs and p99 90.3 µs per cell under 200 characters; p50 410.1 µs and p99 1110.3 µs per KB; a 10k-cell batch (95% clean cells) in 0.137 s (73165 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
+Latency on Python 3.14.10 (arm64): p50 12.8 µs and p99 90.3 µs per cell under 200 characters; p50 410.1 µs and p99 1110.3 µs per KB; a 10k-cell batch (95% clean cells) in 0.137 s (73165 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 0.79 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
 
 ## Migrating from 0.1
 
