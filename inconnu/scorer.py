@@ -43,12 +43,15 @@ def mask(value: str) -> str:
     )
 
 
-def _personal(name: str) -> bool:
-    """A key like jane_smith_notes could itself name a person: leave it out of the payload."""
-    parts = re.split(r"[_.-]|(?<=[a-z])(?=[A-Z])", name)
-    return any(
-        p.lower() in wordlist("first_names.txt") | wordlist("surnames.txt")
-        and p.lower() not in wordlist("code_words.txt")
+def _safe_name(name: str | None) -> bool:
+    """Send a key name only if it is made of plain words: a key can itself be a token, a hash or a person's name."""
+    if not name or not IDENTIFIER.fullmatch(name):
+        return False
+    parts = [p for p in re.split(r"[_.-]|(?<=[a-z])(?=[A-Z])", name) if p]
+    names = wordlist("first_names.txt") | wordlist("surnames.txt")
+    return all(
+        re.fullmatch(r"[A-Za-z]{1,24}", p)
+        and (p.lower() not in names or p.lower() in wordlist("code_words.txt"))
         for p in parts
     )
 
@@ -84,7 +87,7 @@ def describe(text: str, start: int, end: int, kind: str, key: str | None) -> str
         ("Key name in the text", named and named.group(1)),
         ("Column or JSON key", key),
     ):
-        if name and IDENTIFIER.fullmatch(name) and not _personal(name):
+        if _safe_name(name):
             lines.append(f"{label}: {name}")
     return "\n".join(lines)
 

@@ -98,3 +98,12 @@ def test_description_masks_every_letter_and_drops_personal_keys():
     assert "Shape (A upper, a lower, 9 digit): Aaaaaa Aaaaaaaaa" in description
     assert not any(ch in description for ch in "ŁŻółć")
     assert "jane_smith" not in description
+
+
+def test_description_drops_secret_shaped_key_names():
+    from inconnu.scorer import describe
+
+    token_key = "ghp" + "_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    description = describe("PASSWORD=hunter", 9, 15, "SECRET:generic", token_key)
+    assert token_key not in description
+    assert "Key name in the text: PASSWORD" in description

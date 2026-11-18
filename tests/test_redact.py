@@ -131,6 +131,8 @@ def test_webhooks_and_pem():
         (DSN.format("p@ss#w?rd"), DSN.format("[SECRET:url-password]")),
         ('password = "hunter2!x"', 'password = "[SECRET:generic]"'),
         ("DB_PASSWORD=Tr0ub4dor&3", "DB_PASSWORD=[SECRET:generic]"),
+        ('dbPassword="Tr0ub4dor!"', 'dbPassword="[SECRET:generic]"'),
+        ('accessToken="Tr0ub4dor!"', 'accessToken="[SECRET:generic]"'),
         (
             "Authorization: Bearer abcDEF123456ghiJKL789mno",
             "Authorization: Bearer [SECRET:bearer]",

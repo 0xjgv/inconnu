@@ -95,7 +95,7 @@ inconnu FRR by detector: entropy 0.0045, luhn 0.0004, names 0.0043, phonenumbers
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7256): p50 12.1 µs, p99 79.6 µs, max 198.0 µs
-- per KB (texts >= 64 chars, n=2100): p50 363.9 µs, p99 1055.7 µs
-- 10k-cell batch: 0.18 s, 55673 cells/s, 2.49 MB/s
+- per cell (<200 chars, n=7256): p50 12.1 µs, p99 85.4 µs, max 204.7 µs
+- per KB (texts >= 64 chars, n=2100): p50 379.5 µs, p99 1092.2 µs
+- 10k-cell batch: 0.183 s, 54568 cells/s, 2.44 MB/s
 - inconnu 0.1.1 on the same records: inconnu-0.1.1 1.33 ms/record, spacy-sm-person 2.13 ms/record

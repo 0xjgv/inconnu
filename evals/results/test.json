@@ -827,19 +827,19 @@
   "machine": "arm64",
   "cell_us": {
    "p50": 12.1,
-   "p99": 79.6,
-   "max": 198.0,
+   "p99": 85.4,
+   "max": 204.7,
    "n": 7256
   },
   "per_kb_us": {
-   "p50": 363.9,
-   "p99": 1055.7,
+   "p50": 379.5,
+   "p99": 1092.2,
    "n": 2100
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.18,
-   "cells_per_s": 55673,
-   "mb_per_s": 2.49
+   "seconds_median_of_5": 0.183,
+   "cells_per_s": 54568,
+   "mb_per_s": 2.44
   }
  }
 }
