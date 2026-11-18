@@ -37,7 +37,12 @@ def main(argv: list[str] | None = None) -> int:
                 document = json.loads(data)
             except ValueError as exc:
                 print(
-                    f"inconnu: input is not valid JSON (line {exc.lineno}, column {exc.colno})",
+                    "inconnu: input is not valid JSON"
+                    + (
+                        f" (line {exc.lineno}, column {exc.colno})"
+                        if hasattr(exc, "lineno")
+                        else ""
+                    ),
                     file=sys.stderr,
                 )
                 return 2

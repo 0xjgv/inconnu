@@ -8,7 +8,7 @@
 | CARD | 150 | 0.966 | 0.933 | 0.949 | 0.947 | - | 0.000 |
 | SSN | 150 | 1.000 | 1.000 | 1.000 | 1.000 | - | 0.000 |
 | IP | 150 | 0.980 | 1.000 | 0.990 | 1.000 | - | 0.000 |
-| PERSON | 400 | 0.931 | 0.775 | 0.846 | 0.760 | 0.427 | 0.792 |
+| PERSON | 400 | 0.931 | 0.775 | 0.846 | 0.755 | 0.427 | 0.792 |
 | PERSON (spaCy en_core_web_sm, raw) | 400 | 0.418 | 0.792 | 0.547 | 0.745 | | |
 | PHONE (regex only, no phonenumbers) | 300 | 1.000 | 0.520 | 0.684 | 0.510 | | |
 
@@ -95,7 +95,7 @@ inconnu FRR by detector: entropy 0.0055, ipaddress 0.0004, keyword 0.0012, luhn 
 
 ## latency (Python 3.14.10, arm64)
 
-- per cell (<200 chars, n=7238): p50 12.5 µs, p99 88.1 µs, max 205.8 µs
-- per KB (texts >= 64 chars, n=2163): p50 390.7 µs, p99 1103.9 µs
-- 10k-cell batch: 0.132 s, 75681 cells/s, 3.11 MB/s
-- inconnu 0.1.1 on the same records: inconnu-0.1.1 1.18 ms/record, spacy-sm-person 2.21 ms/record
+- per cell (<200 chars, n=7238): p50 12.8 µs, p99 89.2 µs, max 215.8 µs
+- per KB (texts >= 64 chars, n=2163): p50 407.4 µs, p99 1110.3 µs
+- 10k-cell batch: 0.136 s, 73433 cells/s, 3.02 MB/s
+- inconnu 0.1.1 on the same records: inconnu-0.1.1 0.82 ms/record, spacy-sm-person 1.37 ms/record

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import math
 import os
 import time
 from pathlib import Path
@@ -37,11 +38,23 @@ def load_keys():
                 os.environ[name.strip()] = value.strip().strip("\"'")
 
 
+def finite_seconds(value: str) -> float:
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise argparse.ArgumentTypeError(
+            "budget must be a finite, non-negative number of seconds"
+        )
+    return seconds
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-calls", type=lambda v: max(0, int(v)), default=120)
     parser.add_argument(
-        "--budget-s", type=float, default=600, help="wall clock for the whole run"
+        "--budget-s",
+        type=finite_seconds,
+        default=600,
+        help="wall clock for the whole run",
     )
     args = parser.parse_args()
     load_keys()

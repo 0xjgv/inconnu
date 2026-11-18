@@ -80,6 +80,9 @@ def find(text: str, key: str | None):
         if (
             1 <= len(words) <= 5
             and len(" ".join(words)) >= len(stripped) - 8
+            and not any(
+                w.capitalize() in NOT_SURNAME for w in words
+            )  # Acme Corp under full_name
             and (
                 _known(words[0], "first_names.txt")
                 or (len(words) >= 2 and (named or _known(words[-1], "surnames.txt")))
@@ -102,8 +105,19 @@ def find(text: str, key: str | None):
             j += 1
         title = TITLE.search(text, max(0, word.start() - 8), word.start())
         if title:
-            yield title.start(), words[j].end(), "PERSON", 0.9, "names"
-            i = j + 1
+            # The title's own word, then only words that are known names: "Mr. Smith Approved Review" -> "Mr. Smith".
+            last = i
+            while (
+                last < j
+                and any(
+                    _known(words[last + 1].group(), r)
+                    for r in ("first_names.txt", "surnames.txt")
+                )
+                and not _common(words[last + 1].group())
+            ):
+                last += 1
+            yield title.start(), words[last].end(), "PERSON", 0.9, "names"
+            i = last + 1
             continue
         if j == i:
             i += 1

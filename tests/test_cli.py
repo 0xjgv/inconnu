@@ -5,6 +5,7 @@ import sys
 
 
 def run(args, stdin, env=None):
+    env = {**(os.environ if env is None else env), "PYTHONIOENCODING": "utf-8:strict"}
     return subprocess.run(
         [sys.executable, "-m", "inconnu", *args],
         input=stdin,
@@ -54,4 +55,12 @@ def test_scorer_flag_without_keys_redacts_the_band():
 def test_json_mode_rejects_nan_output():
     result = run(["--json"], '{"x": NaN}')
     assert result.returncode == 1
+    assert result.stdout == ""
+
+
+def test_json_mode_rejects_input_python_cannot_parse():
+    result = run(
+        ["--json"], '{"x": 1' + "1" * 5000 + "}"
+    )  # ValueError without a line number
+    assert result.returncode == 2
     assert result.stdout == ""

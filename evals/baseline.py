@@ -20,19 +20,18 @@ LABELS = {"PHONE_NUMBER": "PHONE", "CREDIT_CARD": "CARD", "PER": "PERSON"}
 
 
 def spans(original: str, redacted: str) -> list:
+    """Align the unchanged text around each placeholder; every placeholder stands for at least one character."""
     pieces = re.split(r"\[([A-Z_]+)\]", redacted)
-    out, pos = [], len(pieces[0])
-    for i in range(1, len(pieces), 2):
-        label, literal = pieces[i], pieces[i + 1]
-        if i + 2 < len(pieces):
-            end = original.find(literal, pos + 1) if literal else pos + 1
-        else:
-            end = len(original) - len(literal)
-        if end <= pos:
-            end = pos + 1
-        out.append([pos, end, LABELS.get(label, label)])
-        pos = end + len(literal)
-    return out
+    labels, literals = pieces[1::2], pieces[0::2]
+    pattern = "(.+?)".join(re.escape(lit) for lit in literals)
+    m = re.fullmatch(pattern, original, re.DOTALL)
+    # No alignment only if 0.1.1 altered unredacted text; count that as no prediction.
+    if m is None:
+        return []
+    return [
+        [m.start(g), m.end(g), LABELS.get(label, label)]
+        for g, label in enumerate(labels, 1)
+    ]
 
 
 def main():

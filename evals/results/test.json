@@ -40,7 +40,7 @@
    "EMAIL": 1.0,
    "IBAN": 1.0,
    "IP": 1.0,
-   "PERSON": 0.7525,
+   "PERSON": 0.7475,
    "PHONE": 0.9367,
    "SSN": 1.0,
    "anthropic-key": 1.0,
@@ -822,27 +822,27 @@
   }
  },
  "baseline_seconds": {
-  "inconnu-0.1.1": 10.458757624961436,
-  "spacy-sm-person": 16.743446499982383
+  "inconnu-0.1.1": 6.2023405419895425,
+  "spacy-sm-person": 10.589885249966756
  },
  "latency": {
   "python": "3.14.10",
   "machine": "arm64",
   "cell_us": {
-   "p50": 12.6,
-   "p99": 89.5,
-   "max": 206.8,
+   "p50": 12.8,
+   "p99": 90.3,
+   "max": 208.0,
    "n": 7256
   },
   "per_kb_us": {
-   "p50": 395.2,
-   "p99": 1094.6,
+   "p50": 410.1,
+   "p99": 1110.3,
    "n": 2100
   },
   "batch_10k": {
-   "seconds_median_of_5": 0.133,
-   "cells_per_s": 75041,
-   "mb_per_s": 3.09
+   "seconds_median_of_5": 0.137,
+   "cells_per_s": 73165,
+   "mb_per_s": 3.01
   }
  }
 }

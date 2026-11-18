@@ -314,3 +314,17 @@ def test_bot_review_leaks_are_closed(text, kwargs, leak):
 def test_batch_rejects_empty_keys_list():
     with pytest.raises(ValueError):
         redact_batch(["a@example.com"], [])
+
+
+def test_second_bot_review_cases():
+    begin, end = "-----BEGIN " + "PRIVATE KEY-----", "-----END " + "PRIVATE KEY-----"
+    big = begin + "\n" + ("MIIEowIBAAKCAQEA7bq9" * 4 + "\n") * 150 + end
+    assert redact("key: " + big)[0] == "key: [SECRET:private-key]"
+    assert "MIIE" not in redact(begin + "\nMIIEowIBAAKCAQEA7bq9 truncated")[0]
+    dsn = "postgres:" + "//user:" + "s3cretPw9" + "@[2001:db8::1]:5432/db"
+    assert "s3cretPw9" not in redact(dsn)[0]
+    assert redact("from 2001:db8::1.")[0] == "from [IP]."
+    assert redact("Mr. Smith Approved Review")[0] == "[PERSON] Approved Review"
+    assert redact("Acme Corp", key="full_name")[0] == "Acme Corp"
+    letters = "qZpLkXvRtWmNbYcHdJsGfQaZxPlMkJ"
+    assert letters not in redact(f"rotated {letters} today")[0]

@@ -46,7 +46,7 @@ inconnu --json < result.json > redacted.json          # JSON in, JSON out
 
 Exit 0 on success, 2 when `--json` input is not JSON, 1 on any other error. On failure nothing is written to
 stdout and the error message never quotes the input, so a caller that forwards stdout cannot leak unredacted data.
-A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=..., capture_output=True)`.
+A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=payload, capture_output=True, text=True)`.
 
 ## Placeholders
 
@@ -55,9 +55,9 @@ A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--
 | `[EMAIL]` | email addresses |
 | `[PHONE]` | phone numbers: international (+ or 00), or national formats valid for the US and 15 other regions |
 | `[IBAN]` | IBANs that pass mod-97 |
-| `[CARD]` | payment card numbers that pass Luhn with a known issuer prefix |
+| `[CARD]` | payment card numbers that pass Luhn with a known issuer prefix; in a card-named column, any Luhn-valid number |
 | `[SSN]` | US Social Security numbers |
-| `[IP]` | IPv4 and IPv6 addresses (not loopback, 0.0.0.0 or netmasks) |
+| `[IP]` | IPv4 and IPv6 addresses, except loopback and unspecified addresses and IPv4 netmasks (255.x) |
 | `[PERSON]` | person names: first-name and surname gazetteers, titles (Mr., Dr.), name columns |
 | `[SECRET:<kind>]` | `aws-access-key`, `github-token`, `gitlab-token`, `anthropic-key`, `openai-key`, `slack-token`, `slack-webhook`, `discord-webhook`, `stripe-key`, `google-api-key`, `npm-token`, `pypi-token`, `sendgrid-key`, `jwt`, `private-key`, `password-hash`, `url-password`, `bearer`, `basic-auth`, and `generic` for values of secret-named keys (`password=`, `client_secret:`, `"apiKey": ...`) |
 | `[SECRET:entropy]` | unknown secrets: long tokens that look random for their charset |
@@ -108,11 +108,11 @@ Thresholds and allowlists were tuned on the dev split; the numbers below are the
 | SECRET (21 kinds, n=1370) | 0.976 | 0.990 | - | 0.239 (any label) |
 | SECRET, detect-secrets 1.5 | 0.695 | 0.454 | | |
 
-Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.012 (0.1.1: 0.519); the entropy detector alone: 0.005. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.765: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.904: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted). Negatives include real standard-library lines, which name real authors; redacting those counts as a false redaction here.
+Lowest secret recall: entropy 0.954. False-redaction rate (share of negative records with any redaction, 21 categories): 0.012 (0.1.1: 0.519); the entropy detector alone: 0.0055. Below 0.95 precision or 0.90 recall: PERSON (precision 0.933, recall 0.765: first names outside the gazetteers, and companies named after people) and SECRET:entropy precision (0.904: random request and object IDs with no key nearby look exactly like secrets, so they land in the uncertain band and are redacted). Negatives include real standard-library lines, which name real authors; redacting those counts as a false redaction here.
 
 Scorer, live on 120 of 246 distinct dev-band descriptions (every one with a false positive, then CARD, PERSON, PHONE and SECRET:entropy true positives in turn; 0.19 s per call, 0 failures): at the 0.5 threshold it cleared 3 of 24 false positives and 0 of 115 true positives. It is cautious: it adds little precision and, on this sample, no leaks (`evals/results/scorer.json`).
 
-Latency on Python 3.14.10 (arm64): p50 12.6 µs and p99 89.5 µs per cell under 200 characters; p50 395.2 µs and p99 1094.6 µs per KB; a 10k-cell batch (95% clean cells) in 0.133 s (75041 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
+Latency on Python 3.14.10 (arm64): p50 12.8 µs and p99 90.3 µs per cell under 200 characters; p50 410.1 µs and p99 1110.3 µs per KB; a 10k-cell batch (95% clean cells) in 0.137 s (73165 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 1.33 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
 
 ## Migrating from 0.1
 

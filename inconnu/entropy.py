@@ -82,12 +82,11 @@ def _encoded_text(token: str) -> bool:
 
 
 def confidence(token: str, text: str, start: int, key: str | None) -> float:
-    if (
-        not (re.search(r"\d", token) and re.search(r"[A-Za-z]", token))
-        or UUID.search(token)
-        or DIGEST.match(token)
-    ):
+    if not re.search(r"[A-Za-z]", token) or UUID.search(token) or DIGEST.match(token):
         return 0.0
+    letters_only = not re.search(
+        r"\d", token
+    )  # judged by stricter word and mixing checks below
     near = secret_key(key) or bool(NEAR_SECRET.search(text, max(0, start - 48), start))
     if not near and (HEX.fullmatch(token) or len(token) > MAX_LEN):
         return 0.0
@@ -105,8 +104,8 @@ def confidence(token: str, text: str, start: int, key: str | None) -> float:
         return 0.85 if randomness >= 0.8 else 0.0
     if (
         randomness < MIN_RANDOMNESS
-        or wordiness > MAX_WORDINESS
-        or mixing < MIN_MIXING
+        or wordiness > (0.2 if letters_only else MAX_WORDINESS)
+        or mixing < (0.5 if letters_only else MIN_MIXING)
         or _encoded_text(token)
     ):
         return 0.0

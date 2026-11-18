@@ -12,12 +12,6 @@ import re
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
 RULES = [
     (
-        "private-key",
-        r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]{16,8192}?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----",
-        0.99,
-        ("PRIVATE KEY",),
-    ),
-    (
         "aws-access-key",
         r"\b(?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}\b",
         0.97,
@@ -84,7 +78,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@[\w.-]+",
+        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
         0.97,
         ("://",),
     ),
@@ -100,6 +94,8 @@ RULES = [
     (kind, re.compile(pattern), conf, tuple(lit.lower() for lit in literals))
     for kind, pattern, conf, literals in RULES
 ]
+PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
+PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
 KEYWORD_LITERALS = (
     "pass",
@@ -164,9 +160,24 @@ def value_confidence(value: str, quoted: bool) -> float:
     return 0.9 if len(value) >= 4 else 0.5
 
 
+def _private_keys(text: str):
+    """PEM private key blocks, any size, in one pass. A BEGIN with no END redacts to the end of the text."""
+    pos = 0
+    while (begin := PEM_BEGIN.search(text, pos)) is not None:
+        end = PEM_END.search(text, begin.end())
+        if end is None:
+            yield begin.start(), len(text)
+            return
+        yield begin.start(), end.end()
+        pos = end.end()
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    if "private key" in lower:
+        for start, end in _private_keys(text):
+            yield start, end, "SECRET:private-key", 0.99, "rule"
     for kind, pattern, conf, literals in RULES:
         if not any(literal in lower for literal in literals):
             continue
