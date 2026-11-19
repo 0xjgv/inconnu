@@ -626,6 +626,31 @@ class Gen:
                 ),
             )
 
+    def dev_random_segments(self, n: int):
+        for i in range(n):
+            nbytes = 16 + i % 25
+            encode = self.r.choice([base64.b64encode, base64.urlsafe_b64encode])
+            token = encode(self.r.randbytes(nbytes)).decode()
+            if i % 2:
+                token = token.rstrip("=")
+            self.add(
+                "pos:limits:random-segment",
+                self.r.choice(["{v}", "meta-v1.{v}.data-v1", " {v} "]),
+                token,
+                "SECRET",
+                "entropy",
+            )
+            self.add("neg:limits:typed-random-id", "{v}", token, key="objectId")
+            identifier = self.r.choice(
+                [
+                    f"cp314-win_arm64-asset_{i:05d}",
+                    f"GetScanIssueActionForProject{i:03d}",
+                    f"rhel9-x86_64-clang-build_{i:06d}",
+                    f"SHA256:{token}",
+                ]
+            )
+            self.add("neg:limits:build-identifier", identifier)
+
     def context_ids(self, n: int):
         for i in range(n):
             token = self.s(B62, 32)
@@ -1193,6 +1218,10 @@ def main():
         extra = Gen(seed + 5000)
         extra.context_ids(80)
         g.records.extend(extra.records)
+        if split == "dev":
+            extra = Gen(seed + 25000)
+            extra.dev_random_segments(400)
+            g.records.extend(extra.records)
         if split == "test":
             heldout = Gen(seed + 15000)
             heldout.heldout_ids(12)
