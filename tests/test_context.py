@@ -158,6 +158,9 @@ def test_credential_candidates_remain_bounded():
         started = time.perf_counter()
         redact(cell)
         assert time.perf_counter() - started < 0.5
+    started = time.perf_counter()
+    redact("a=1\n" + "\n" * 32000, key="Cookie")  # every blank line is a pair anchor
+    assert time.perf_counter() - started < 0.5
 
 
 def test_cookie_fails_closed_on_unterminated_quote_and_secret_column():
