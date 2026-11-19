@@ -13,7 +13,7 @@ from phonenumbers import (
     parse,
 )
 
-from .credentials import URL_PASSWORD
+from .credentials import url_password_matches
 
 EMAIL = re.compile(
     r"(?<![\w.%+/-])[\w.%+-]{1,64}@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}\b"
@@ -82,7 +82,7 @@ def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     digits = len(DIGITS.sub("", text))
     url_passwords = (
-        [u.span("s") for u in URL_PASSWORD.finditer(text)] if "://" in text else []
+        [u.span("s") for u in url_password_matches(text)] if "://" in text else []
     )
     for m in EMAIL.finditer(text) if "@" in text else ():
         local, domain = m.group().split("@", 1)

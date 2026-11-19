@@ -257,6 +257,20 @@ def test_url_with_port_and_later_at_sign_is_not_a_password():
     assert redact(url)[0] == url
 
 
+@pytest.mark.parametrize("separator", ["/path?q=", "?q=", "#contact="])
+def test_email_after_url_port_is_redacted(separator):
+    url = "https://user:8080" + separator
+    assert redact(url + "joe@example.invalid")[0] == url + "[EMAIL]"
+    assert redact(url + "docs") == (url + "docs", [])
+
+
+def test_url_password_owns_email_shaped_userinfo():
+    url = "https://user:violet47@example.invalid:8080/docs"
+    assert (
+        redact(url)[0] == "https://user:[SECRET:url-password]@example.invalid:8080/docs"
+    )
+
+
 def test_batch_rejects_mismatched_keys():
     with pytest.raises(ValueError):
         redact_batch(["a@example.com", "b@example.com"], ["email"])

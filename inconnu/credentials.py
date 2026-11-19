@@ -97,6 +97,7 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
+URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -172,6 +173,13 @@ def _private_keys(text: str):
         pos = end.end()
 
 
+def url_password_matches(text: str):
+    for match in URL_PASSWORD.finditer(text):
+        # A numeric port followed by a path, query or fragment is outside userinfo.
+        if not URL_PORT.match(text, match.start("s"), match.end("s")):
+            yield match
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
@@ -182,9 +190,12 @@ def find(text: str, key: str | None):
         if not any(literal in lower for literal in literals):
             continue
         group = "s" if "s" in pattern.groupindex else 0
-        for m in pattern.finditer(text):
-            if kind == "url-password" and re.match(r"\d+/", m.group("s")):
-                continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
+        matches = (
+            url_password_matches(text)
+            if kind == "url-password"
+            else pattern.finditer(text)
+        )
+        for m in matches:
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
     for m in (
