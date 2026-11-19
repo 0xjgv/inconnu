@@ -43,6 +43,25 @@ def test_pii(text, expected):
 
 
 @pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Dr. Christopher Nkrumah", "[PERSON]"),
+        (
+            "Ask Dr. Christopher Nkrumah, then call back.",
+            "Ask [PERSON], then call back.",
+        ),
+        ("Dr. Christopher Nkrumah\nRegards", "[PERSON]\nRegards"),
+        ("Dr. Christopher Approved Review", "[PERSON] Approved Review"),
+        ("Dr. Christopher Access.", "[PERSON] Access."),
+        ("Dr. Christopher Terminal.", "[PERSON] Terminal."),
+        ("Dr. Christopher started work.", "[PERSON] started work."),
+    ],
+)
+def test_titled_names_include_a_terminal_surname(text, expected):
+    assert redact(text)[0] == expected
+
+
+@pytest.mark.parametrize(
     ("value", "kind"),
     [
         ("AKIA" + "Z7Q2" * 4, "aws-access-key"),
