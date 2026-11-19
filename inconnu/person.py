@@ -14,6 +14,8 @@ import unicodedata
 from functools import cache
 from importlib.resources import files
 
+from .credentials import CAMEL
+
 UPPER, LOWER = "A-ZÀ-ÖØ-ÞĀĆČĎĘĚŁŃŇŐŘŚŠŤŮŰŹŻŽ", "a-zß-öø-ÿāćčďęěłńňőřśšťůűźżž"
 WORD = re.compile(
     rf"[{UPPER}](?:[{LOWER}]+(?:['’-][{UPPER}]?[{LOWER}]+)?|['’][{UPPER}][{LOWER}]+)"
@@ -32,6 +34,9 @@ NAME_KEY = re.compile(
 )
 COMPANY_KEY = re.compile(
     r"(?i)^(?:company|organi[sz]ation|org|tenant|vendor|employer)(?:_?name)?$"
+)
+HUMAN_CONTEXT = re.compile(
+    r"(?i)(?:\b(?:assigned to|reviewed by|triaged by|done by|owner:|reporter:|contact:|hi|dear|thanks|cc)|meeting notes:)\s+$"
 )
 # Next words that make a first name part of a company, product or UI label (from the eval negatives).
 NOT_SURNAME = frozenset(
@@ -67,6 +72,22 @@ def _common(word: str) -> bool:
 
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
+    if key:
+        parts = CAMEL.sub("_", key).lower().split(".")
+        key = parts[-1]
+        if key == "name" and any(
+            p
+            in {
+                "companies",
+                "company",
+                "organizations",
+                "organization",
+                "tenants",
+                "vendors",
+            }
+            for p in parts[:-1]
+        ):
+            return
     if key and COMPANY_KEY.search(key):
         return
     if key and NAME_KEY.match(key):
@@ -84,7 +105,8 @@ def find(text: str, key: str | None):
                 w.capitalize() in NOT_SURNAME for w in words
             )  # Acme Corp under full_name
             and (
-                _known(words[0], "first_names.txt")
+                (named and len(words) == 1)
+                or _known(words[0], "first_names.txt")
                 or (len(words) >= 2 and (named or _known(words[-1], "surnames.txt")))
             )
         ):
@@ -123,6 +145,9 @@ def find(text: str, key: str | None):
             i += 1
             continue
         first, last = word.group(), words[j].group()
+        if first.lower() in {"hi", "dear", "thanks"} and j > i + 1:
+            i += 1
+            continue
         if last in NOT_SURNAME or text[words[j].end() : words[j].end() + 2] == " &":
             i = j + 1
             continue
@@ -139,6 +164,8 @@ def find(text: str, key: str | None):
             continue
         if _common(first) and not known_last or _common(last) and not known_first:
             conf = 0.0
+        elif HUMAN_CONTEXT.search(text, max(0, word.start() - 48), word.start()):
+            conf = 0.85
         elif known_first:
             conf = 0.9 if known_last else 0.7
         else:

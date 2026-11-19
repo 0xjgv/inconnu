@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from inconnu import redact
+from inconnu import redact, redact_json
 
 
 def jwt(header, claims):
@@ -134,6 +134,33 @@ def test_harmless_context_is_preserved(text):
     assert redact(text)[0] == text
 
 
+@pytest.mark.parametrize(
+    "key", ["fullName", "users.full_name", "author_name", "firstName"]
+)
+def test_unknown_names_in_explicit_columns(key):
+    assert redact("zuzanna niewiadomska", key=key)[0] == "[PERSON]"
+
+
+@pytest.mark.parametrize("key", ["companyName", "companies.name", "users.company_name"])
+def test_company_context_does_not_suppress_secrets(key):
+    assert redact("Morgan Stanley", key=key)[0] == "Morgan Stanley"
+    assert redact("password=hungrybadger", key=key)[0] == "password=[SECRET:generic]"
+
+
+def test_metabase_names_and_session_values():
+    out = redact_json(
+        {
+            "cols": [
+                {"name": "fullName"},
+                {"name": "session"},
+                {"name": "companyName"},
+            ],
+            "rows": [["zuzanna niewiadomska", "ab12" * 8, "Morgan Stanley"]],
+        }
+    )
+    assert out["rows"] == [["[PERSON]", "[SECRET:generic]", "Morgan Stanley"]]
+
+
 def test_full_span_metric_catches_partial_leak():
     from evals.run import score
 
@@ -164,6 +191,17 @@ def test_cookie_fails_closed_on_unterminated_quote_and_secret_column():
     assert redact('Cookie: sess="last-letter')[0] == 'Cookie: sess="[SECRET:cookie]'
     assert (
         redact("secret-part Cookie: theme=dark", key="api_key")[0] == "[SECRET:generic]"
+    )
+
+
+def test_person_context_in_prose():
+    assert (
+        redact("Reviewed by Zuzanna Niewiadomska today.")[0]
+        == "Reviewed by [PERSON] today."
+    )
+    assert (
+        redact("Reviewed by Build System today.")[0]
+        == "Reviewed by Build System today."
     )
 
 
