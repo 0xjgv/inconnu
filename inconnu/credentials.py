@@ -100,8 +100,8 @@ RULES = [
 ]
 # Compact JWE: protected header, encrypted key (empty for direct encryption), IV, ciphertext, tag.
 JWE = re.compile(
-    r"(?<![\w.-])(?P<header>[A-Za-z0-9_-]{2,4096})\.[A-Za-z0-9_-]{0,16384}\."
-    r"[A-Za-z0-9_-]{1,2048}\.[A-Za-z0-9_-]{0,16384}\.[A-Za-z0-9_-]{1,2048}(?![\w=-]|\.[\w.-])"
+    r"(?<![\w.-])(?P<header>[A-Za-z0-9_-]{2,})\.[A-Za-z0-9_-]*\."
+    r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+(?![\w=-]|\.[\w.-])"
 )
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
