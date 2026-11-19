@@ -26,6 +26,7 @@ GAP = re.compile(
 TITLE = re.compile(
     r"(?:\b(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof|Sir|Herr|Frau|Mme|Mlle|Sr|Sra|Dott|pan|pani)\.?\s+)$"
 )
+NAME_END = re.compile(r"(?:[ \t]*(?:\r?\n|$)|[.,;:!?](?=\s|$))")
 NAME_KEY = re.compile(
     r"(?i)^(?:(?:full|first|last|given|family|display|user|sur|contact|author|owner|assignee|reporter)_?)?name$"
     r"|^(?:author|assignee|reporter|owner|contact)$"
@@ -116,6 +117,17 @@ def find(text: str, key: str | None):
                 and not _common(words[last + 1].group())
             ):
                 last += 1
+            # A title and known first name can introduce an unlisted surname that ends the line.
+            if (
+                last == i
+                and j > i
+                and _known(word.group(), "first_names.txt")
+                and not _common(word.group())
+                and words[i + 1].group() not in NOT_SURNAME
+                and not _common(words[i + 1].group())
+                and NAME_END.match(text, words[i + 1].end())
+            ):
+                last = i + 1
             yield title.start(), words[last].end(), "PERSON", 0.9, "names"
             i = last + 1
             continue
