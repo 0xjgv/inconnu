@@ -121,6 +121,14 @@ def test_secret_rules(value, kind):
     assert f"SECRET:{kind}" in types
 
 
+def test_legacy_github_token_uses_its_alphabet_as_a_boundary():
+    value = "ghp_" + A36
+    assert redact(value + "_", key="trace_id")[0] == "[SECRET:github-token]_"
+    for suffix in ("9", "z"):
+        text = value + suffix
+        assert redact(text, key="trace_id") == (text, [])
+
+
 def test_webhooks_and_pem():
     slack = (
         "https://hooks.slack.com/services/"
