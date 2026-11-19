@@ -19,7 +19,7 @@ RULES = [
     ),
     (
         "github-token",
-        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{82})\b",
+        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}(?![0-9A-Za-z])|github_pat_[0-9A-Za-z_]{82}\b)",
         0.99,
         ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"),
     ),
