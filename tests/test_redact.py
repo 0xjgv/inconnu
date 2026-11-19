@@ -50,8 +50,10 @@ def test_pii(text, expected):
             "Ask Dr. Christopher Nkrumah, then call back.",
             "Ask [PERSON], then call back.",
         ),
+        ("Dr. Christopher Nkrumah\nRegards", "[PERSON]\nRegards"),
         ("Dr. Christopher Approved Review", "[PERSON] Approved Review"),
         ("Dr. Christopher Access.", "[PERSON] Access."),
+        ("Dr. Christopher Terminal.", "[PERSON] Terminal."),
         ("Dr. Christopher started work.", "[PERSON] started work."),
     ],
 )
