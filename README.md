@@ -37,6 +37,16 @@ it when `minisign` is installed and warns when it is not:
 RWRReGpZNrXT60bmrY0IQGD5vLPBmlNwGcfZzXYkLchaAogZNhEHAQ3/
 ```
 
+The one-liner runs `install.sh` before anything is verified. To verify the installer first (`checksums.txt` also
+covers `install.sh`):
+
+```bash
+base=https://github.com/0xjgv/inconnu/releases/latest/download
+curl -fsSLO "$base/install.sh" -O "$base/checksums.txt" -O "$base/checksums.txt.minisig"
+minisign -Vm checksums.txt -P RWRReGpZNrXT60bmrY0IQGD5vLPBmlNwGcfZzXYkLchaAogZNhEHAQ3/
+grep ' install.sh$' checksums.txt | shasum -a 256 -c - && sh install.sh
+```
+
 As a library:
 
 ```bash

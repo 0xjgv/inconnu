@@ -181,13 +181,37 @@ class InstallerTests(unittest.TestCase):
                 self.assertIn("checksums.txt.minisig", unsigned.stderr)
                 self.assertFalse((self.bin / "inconnu").exists())
 
+    def test_update_ignores_installer_only_overrides(self):
+        # Assets signed with the test key; `inconnu update` checks the real key, so it must refuse them.
+        self.publish()
+        result = subprocess.run(
+            [sys.executable, "-m", "inconnu", "update"],
+            env={
+                **self.environment,
+                "PYTHONPATH": str(ROOT),
+                "INCONNU_LOCAL_BUILD": "1",
+            },
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid signature", result.stderr)
+        self.assertFalse((self.bin / "inconnu").exists())
+
     def test_installs_without_minisign_after_a_warning(self):
         self.publish()
-        path = os.pathsep.join(
-            entry
-            for entry in self.environment["PATH"].split(os.pathsep)
-            if not (Path(entry) / "minisign").exists()
-        )
+        # Hide only minisign: mirror each PATH directory that holds it, minus minisign.
+        entries = []
+        for number, entry in enumerate(self.environment["PATH"].split(os.pathsep)):
+            if (Path(entry) / "minisign").exists():
+                mirror = self.root / f"path-{number}"
+                mirror.mkdir()
+                for tool in Path(entry).iterdir():
+                    if tool.name != "minisign":
+                        (mirror / tool.name).symlink_to(tool)
+                entry = str(mirror)
+            entries.append(entry)
+        path = os.pathsep.join(entries)
         result = self.install(PATH=path)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("signature not verified", result.stderr)

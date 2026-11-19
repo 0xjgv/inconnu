@@ -25,7 +25,13 @@ from .scorer import Scorer
 def update(target: str) -> int:
     """Run the installer bundled with this version. It verifies the release's signature by
     calling back `update --verify-signature` with this interpreter, then installs the wheel."""
-    environment = {**os.environ, "INCONNU_VERIFIER": sys.executable}
+    # Installer-only overrides must not leak in: LOCAL_BUILD skips the signature check.
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("INCONNU_LOCAL_BUILD", "INCONNU_VERSION")
+    }
+    environment["INCONNU_VERIFIER"] = sys.executable
     if target:
         environment["INCONNU_VERSION"] = "v" + target.lstrip("v")
     installer = Path(__file__).with_name("install.sh")

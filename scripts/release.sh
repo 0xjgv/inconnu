@@ -36,12 +36,17 @@ next_version() {
         {print $1 "." $2 "." $3 + 1}'
 }
 
-tag=$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+release_tags() {
+    grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true  # skip prerelease and malformed tags
+}
+
+tag=$(git tag --points-at HEAD | release_tags | sort -V | tail -n 1)
 if [ -n "$tag" ]; then
     echo "HEAD is already $tag; resuming its release."
 else
-    latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -V | tail -n 1)
+    latest=$(git tag | release_tags | sed 's/^v//' | sort -V | tail -n 1)
     current=$(project_version)
+    echo "$current" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "pyproject.toml version '$current' is not X.Y.Z"
     newest=$(printf '%s\n%s\n' "$latest" "$current" | sed '/^$/d' | sort -V | tail -n 1)
     if [ "$current" = "$newest" ] && [ "$current" != "$latest" ]; then
         version=$current  # pyproject.toml holds a version that was never tagged: release it as is

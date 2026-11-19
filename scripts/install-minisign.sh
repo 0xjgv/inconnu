@@ -18,6 +18,8 @@ dest=${1:?usage: install-minisign.sh DIR}
 case "$(uname -s)" in
   Darwin)
     brew install minisign
+    mkdir -p "$dest"
+    install -m 0755 "$(brew --prefix minisign)/bin/minisign" "$dest/minisign"
     exit 0
     ;;
   Linux) ;;
