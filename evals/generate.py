@@ -47,6 +47,10 @@ WORDS = (
 ).split()
 
 
+def jwt_segment(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
+
+
 class Gen:
     def __init__(self, seed: int):
         self.r = random.Random(seed)
@@ -438,6 +442,42 @@ class Gen:
 
     # ---------- negatives ----------
 
+    def context_jwt(self, n: int):
+        for i in range(n):
+            # Legal JSON whitespace changes the encoded prefix; a short payload is still a JWT.
+            jwt = (
+                jwt_segment('{ "alg": "HS256", "typ": "JWT" }')
+                + "."
+                + jwt_segment("{}")
+                + "."
+                + self.s(B64URL, 43)
+            )
+            self.add("pos:context:jwt", "{v}", jwt, "SECRET", "jwt")
+            self.add(
+                "neg:context:jwt",
+                jwt_segment('{ "format": "json" }')
+                + "."
+                + jwt_segment("{}")
+                + "."
+                + "release_notes",
+            )
+
+    def heldout_jwt(self, n: int):
+        for i in range(n):
+            value = (
+                jwt_segment('{\n "typ": "JWT", "alg": "HS256"\n}')
+                + "."
+                + jwt_segment(
+                    json.dumps({"sub": self.s(B62, 12), "email": self.en.email()})
+                )
+                + "."
+                + self.s(B64URL, 43)
+            )
+            self.add(
+                "pos:holdout:jwt", "claims: {v}\nstatus: active", value, "SECRET", "jwt"
+            )
+            self.add("neg:holdout:jwt", "artifact version: release.2026.preview")
+
     def identifier(self) -> str:
         words = [self.r.choice(WORDS) for _ in range(self.r.randint(2, 5))]
         style = self.r.choice(["snake", "camel", "pascal", "kebab", "const"])
@@ -804,6 +844,13 @@ def main():
         g.secrets(40)
         g.negatives(200)
         g.real_negatives(1000)
+        extra = Gen(seed + 3000)
+        extra.context_jwt(80)
+        g.records.extend(extra.records)
+        if split == "test":
+            heldout = Gen(seed + 13000)
+            heldout.heldout_jwt(12)
+            g.records.extend(heldout.records)
         g.write(ROOT / "data" / f"{split}.jsonl")
         print(f"{split}: {len(g.records)} records")
 

@@ -6,6 +6,9 @@ and the providers' own token documentation.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import re
 
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
@@ -66,9 +69,9 @@ RULES = [
     ("sendgrid-key", r"\bSG\.[\w-]{22}\.[\w-]{43}\b", 0.99, ("SG.",)),
     (
         "jwt",
-        r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}",
+        r"(?<![\w.-])[A-Za-z0-9_-]{2,4096}\.[A-Za-z0-9_-]{2,16384}\.[A-Za-z0-9_-]{0,2048}(?![\w-])",
         0.95,
-        ("eyJ",),
+        (".",),
     ),
     (
         "password-hash",
@@ -172,6 +175,30 @@ def _private_keys(text: str):
         pos = end.end()
 
 
+def _jwt(value: str) -> bool:
+    """Recognize JSON claims, including whitespace and short payloads; no signature verification."""
+    header, payload, signature = value.split(".")
+    try:
+        decoded = [
+            json.loads(
+                base64.b64decode(
+                    part + "=" * (-len(part) % 4), altchars=b"-_", validate=True
+                )
+            )
+            for part in (header, payload)
+        ]
+    except (ValueError, binascii.Error, UnicodeDecodeError, RecursionError):
+        return False
+    head, claims = decoded
+    return (
+        isinstance(head, dict)
+        and isinstance(head.get("alg"), str)
+        and bool(head["alg"])
+        and isinstance(claims, dict)
+        and (bool(signature) or head["alg"] == "none")
+    )
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
@@ -183,6 +210,8 @@ def find(text: str, key: str | None):
             continue
         group = "s" if "s" in pattern.groupindex else 0
         for m in pattern.finditer(text):
+            if kind == "jwt" and not _jwt(m.group()):
+                continue
             if kind == "url-password" and re.match(r"\d+/", m.group("s")):
                 continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
