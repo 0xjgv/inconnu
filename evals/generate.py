@@ -552,6 +552,53 @@ class Gen:
                 + "release_notes",
             )
 
+    def context_person(self, n: int):
+        for i in range(n):
+            name = self.faker().first_name() + " " + self.faker().last_name()
+            self.add(
+                "pos:context:person",
+                "{v}",
+                name.lower(),
+                "PERSON",
+                key=self.r.choice(
+                    ["users.full_name", "fullName", "firstName", "author_name"]
+                ),
+            )
+            self.add(
+                "pos:context:person-prose",
+                self.r.choice(
+                    [
+                        "Assigned to {v} yesterday.",
+                        "Reviewed by {v} today.",
+                        "Hi {v}, your scan finished.",
+                    ]
+                ),
+                name,
+                "PERSON",
+            )
+            self.add(
+                "neg:context:company",
+                self.r.choice(["Morgan Stanley", "Charles Schwab", "Ralph Lauren"]),
+                key=self.r.choice(
+                    [
+                        "companyName",
+                        "companies.name",
+                        "company_name",
+                        "users.company_name",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:context:person-prose",
+                self.r.choice(
+                    [
+                        "Assigned to Security Team yesterday.",
+                        "Reviewed by Build System today.",
+                        "Hi Support Team, your scan finished.",
+                    ]
+                ),
+            )
+
     def heldout_urls(self, n: int):
         for i in range(n):
             self.add(
@@ -622,6 +669,28 @@ class Gen:
                 "pos:holdout:jwt", "claims: {v}\nstatus: active", value, "SECRET", "jwt"
             )
             self.add("neg:holdout:jwt", "artifact version: release.2026.preview")
+
+    def heldout_person(self, n: int):
+        for i in range(n):
+            name = self.faker().first_name() + " " + self.faker().last_name()
+            self.add(
+                "pos:holdout:person",
+                "The alert was triaged by {v} today.",
+                name,
+                "PERSON",
+            )
+            self.add(
+                "pos:holdout:name-column",
+                "{v}",
+                name.lower(),
+                "PERSON",
+                key="profile.givenName",
+            )
+            self.add("neg:holdout:company", "Morgan Stanley", key="organizations.name")
+            self.add(
+                "neg:holdout:person-prose",
+                "The alert was triaged by Security Team today.",
+            )
 
     def identifier(self) -> str:
         words = [self.r.choice(WORDS) for _ in range(self.r.randint(2, 5))]
@@ -1009,6 +1078,13 @@ def main():
         if split == "test":
             heldout = Gen(seed + 13000)
             heldout.heldout_jwt(12)
+            g.records.extend(heldout.records)
+        extra = Gen(seed + 4000)
+        extra.context_person(80)
+        g.records.extend(extra.records)
+        if split == "test":
+            heldout = Gen(seed + 14000)
+            heldout.heldout_person(12)
             g.records.extend(heldout.records)
         g.write(ROOT / "data" / f"{split}.jsonl")
         print(f"{split}: {len(g.records)} records")
