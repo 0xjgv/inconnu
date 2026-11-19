@@ -344,6 +344,67 @@ def test_adversarial_cells_stay_linear():
         assert time.perf_counter() - started < 0.5, cell[:20]
 
 
+def test_many_disjoint_spans_stay_within_cpu_budget():
+    import time
+
+    copies = 28_000
+    text = "a@example.invalid " * copies
+    start = time.process_time()
+    redacted, findings = redact(text)
+    elapsed = time.process_time() - start
+    assert redacted == "[EMAIL] " * copies
+    assert len(findings) == copies
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
+
+
+def test_many_redacted_json_keys_stay_within_cpu_budget():
+    import time
+
+    copies = 14_000
+    data = {f"a{i}@example.invalid": i for i in range(copies)}
+    start = time.process_time()
+    out = redact_json(data)
+    elapsed = time.process_time() - start
+    assert len(out) == copies
+    assert out["[EMAIL]"] == 0
+    assert out[f"[EMAIL] ({copies})"] == copies - 1
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
+
+
+def test_span_sweep_joins_overlaps_but_leaves_adjacent_spans_separate(monkeypatch):
+    from inconnu import core
+
+    def find(text, key):
+        yield 0, 4, "EMAIL", 0.95, "regex"
+        yield 4, 8, "PHONE", 0.9, "phone"
+        yield 7, 12, "IP", 0.8, "ipaddress"
+        yield 10, 13, "PERSON", 0.7, "names"
+
+    monkeypatch.setattr(core, "DETECTORS", (find,))
+    redacted, spans = redact("abcdefghijklmnop")
+    assert redacted == "[EMAIL][IP]nop"
+    assert [(s["start"], s["end"], s["confidence"]) for s in spans] == [
+        (0, 4, 0.95),
+        (4, 13, 0.9),
+    ]
+
+
+def test_json_key_suffixes_respect_literal_keys():
+    assert redact_json(
+        {
+            "[EMAIL] (2)": "existing",
+            "a@example.invalid": 1,
+            "b@example.invalid": 2,
+            "[EMAIL] (3)": "later",
+        }
+    ) == {
+        "[EMAIL] (2)": "existing",
+        "[EMAIL]": 1,
+        "[EMAIL] (3)": 2,
+        "[EMAIL] (3) (2)": "later",
+    }
+
+
 @pytest.mark.parametrize(
     ("text", "kwargs", "leak"),
     [
