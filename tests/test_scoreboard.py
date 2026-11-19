@@ -60,6 +60,7 @@ def test_epoch_remeasures_parent_and_keeps_failed_row_failed(tmp_path, monkeypat
     md.write_text("# Benchmark\n")
     monkeypatch.setattr(board, "BOARD", md)
     monkeypatch.setattr(board, "ROOT", tmp_path)
+    monkeypatch.setattr(board, "git", lambda *args: b"")
     (tmp_path / "evals").mkdir()
     previous = sample()
     new = deepcopy(previous)
@@ -92,6 +93,27 @@ def test_epoch_remeasures_parent_and_keeps_failed_row_failed(tmp_path, monkeypat
     assert not candidate["passed"]
     with pytest.raises(SystemExit, match="already has a row"):
         board.evaluate("append", corpus, new["commit"], "Duplicate")
+
+
+@pytest.mark.parametrize("revision", [None, "1" * 40])
+def test_append_refuses_uncommitted_evaluator(tmp_path, monkeypatch, revision):
+    monkeypatch.setattr(board, "BOARD", tmp_path / "score.md")
+    (tmp_path / "score.md").write_text("# Benchmark\n")
+    corpus = tmp_path / "dev"
+    corpus.write_text("epoch 1")
+
+    def git(*args):
+        dirty = args[:2] == ("status", "--porcelain") and "evals/run.py" in args
+        return b" M evals/run.py\n" if dirty else b""
+
+    monkeypatch.setattr(board, "git", git)
+    monkeypatch.setattr(
+        board, "snapshot", lambda *a, **kw: pytest.fail("measured a dirty evaluator")
+    )
+    with pytest.raises(SystemExit, match="evaluator"):
+        board.evaluate(
+            "append", corpus, "1" * 40, "Candidate", working=revision is None
+        )
 
 
 def test_holdout_uses_one_fresh_sample_for_all_versions_and_does_not_append(

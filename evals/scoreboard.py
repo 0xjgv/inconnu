@@ -18,7 +18,10 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10: tomli is locked there through pytest
+    import tomli as tomllib
 
 SECRET_WEIGHT = 20  # A surviving secret costs twenty false redactions.
 IDENTIFIER_WEIGHT = 10  # SSN, CARD and IBAN expose durable financial or identity data.
@@ -29,6 +32,13 @@ TIMING_LIMITS = {"batch": 1.15, "p99": 1.25}
 TIMING_PAIRS = 5
 
 ROOT = Path(__file__).resolve().parents[1]
+# Rows are measured with the working evaluator, even for --revision, so it must match Git.
+EVALUATOR = (
+    "evals/generate.py",
+    "evals/run.py",
+    "evals/scoreboard.py",
+    "evals/fixtures",
+)
 BOARD = ROOT / "evals/SCOREBOARD.md"
 GIT = shutil.which("git") or "git"
 TABLE = (
@@ -290,9 +300,9 @@ def evaluate(
     dirty = working and bool(
         git("status", "--porcelain", "--", "inconnu", "pyproject.toml")
     )
-    if mode == "append" and dirty:
+    if mode == "append" and (dirty or git("status", "--porcelain", "--", *EVALUATOR)):
         raise SystemExit(
-            "Commit detector and dependency changes before recording their Git SHA. Use make score for working edits."
+            "Commit detector, dependency and evaluator changes before recording their Git SHA. Use make score for working edits."
         )
     if mode == "append":
         previous = next((r for r in reversed(epoch) if r["commit"] == revision), None)

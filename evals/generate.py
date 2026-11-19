@@ -1284,7 +1284,7 @@ class Gen:
 
     def write(self, file: Path):
         self.r.shuffle(self.records)
-        file.parent.mkdir(exist_ok=True)
+        file.parent.mkdir(parents=True, exist_ok=True)
         with file.open("w") as out:
             for i, record in enumerate(self.records):
                 out.write(json.dumps({"id": i, **record}) + "\n")
