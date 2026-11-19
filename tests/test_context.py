@@ -208,8 +208,10 @@ def test_object_context_requires_matching_id_shape(key, prefix):
     value = "q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf"
     assert redact(prefix + value, key="table." + key)[0] == prefix + value
     assert redact(value, key=key)[0] == "[SECRET:entropy]"
+    other = "cus_" if prefix == "pi_" else "pi_"
+    assert redact(other + value, key="table." + key)[0] == "[SECRET:entropy]"
     for secret_prefix in ["sk_live_", "rk_live_", "whsec_"]:
-        result, findings = redact(secret_prefix + value, key="request_id")
+        result, findings = redact(secret_prefix + value, key="table." + key)
         assert value not in result
         assert any(f["type"].startswith("SECRET:") for f in findings)
 
