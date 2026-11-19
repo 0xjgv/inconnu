@@ -30,6 +30,7 @@ TITLE_WORD = (
     r"(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof|Sir|Herr|Frau|Mme|Mlle|Sr|Sra|Dott|pan|pani)"
 )
 TITLE = re.compile(rf"\b{TITLE_WORD}\.?\s+$")
+NAME_END = re.compile(r"(?:[ \t]*(?:\r?\n|$)|[.,;:!?](?=\s|$))")
 NAME_KEY = re.compile(
     r"(?i)^(?:(?:full|first|last|given|family|display|user|sur|contact|author|owner|assignee|reporter)_?)?name$"
     r"|^(?:author|assignee|reporter|owner|contact)$"
@@ -263,10 +264,15 @@ def find(text: str, key: str | None):
                 "company",
                 "organizations",
                 "organization",
+                "organisation",
+                "org",
                 "tenants",
+                "tenant",
                 "vendors",
+                "vendor",
+                "employer",
             }
-            for p in parts[:-1]
+            for p in parts[-2:-1]  # the qualifier right before name, not every ancestor
         ):
             return
     if key and COMPANY_KEY.search(key):
@@ -292,7 +298,11 @@ def find(text: str, key: str | None):
                 w.capitalize() in NOT_SURNAME for w in words
             )  # Acme Corp under full_name
             and (
-                (named and len(words) == 1)
+                (
+                    len(words) == 1  # one name part, not a role such as owner: service
+                    and key.removesuffix("name").rstrip("_")
+                    in {"first", "last", "given", "family", "sur"}
+                )
                 or _known(words[0], "first_names.txt")
                 or (len(words) >= 2 and (named or _known(words[-1], "surnames.txt")))
             )
@@ -350,6 +360,17 @@ def find(text: str, key: str | None):
                 and not _common(words[last + 1].group())
             ):
                 last += 1
+            # A title and known first name can introduce an unlisted surname that ends the line.
+            if (
+                last == i
+                and j > i
+                and _known(word.group(), "first_names.txt")
+                and not _common(word.group())
+                and words[i + 1].group() not in NOT_SURNAME
+                and not _common(words[i + 1].group())
+                and NAME_END.match(text, words[i + 1].end())
+            ):
+                last = i + 1
             yield title.start(), words[last].end(), "PERSON", 0.9, "names"
             i = last + 1
             continue
@@ -376,7 +397,11 @@ def find(text: str, key: str | None):
             continue
         if not known_last and _common(first) or not known_first and _common(last):
             conf = 0.0
-        elif has_cue and HUMAN_CONTEXT.search(text, max(0, start - 48), start):
+        elif (
+            has_cue
+            and first not in NOT_SURNAME
+            and HUMAN_CONTEXT.search(text, max(0, start - 48), start)
+        ):
             conf = 0.85
         elif known_first:
             conf = 0.9 if known_last else 0.7
