@@ -6,6 +6,9 @@ and the providers' own token documentation.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import re
 
 URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:")
@@ -68,9 +71,11 @@ RULES = [
     ("sendgrid-key", r"\bSG\.[\w-]{22}\.[\w-]{43}\b", 0.99, ("SG.",)),
     (
         "jwt",
-        r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}",
+        # The header is a JSON object: base64url of "{" plus a quote or whitespace is ey or ew. Starting only
+        # there, or after a dot, keeps the scan linear with unbounded segments.
+        r"(?<![\w-])e[wy][A-Za-z0-9_-]+\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*(?![\w-])",
         0.95,
-        ("eyJ",),
+        (".",),
     ),
     (
         "password-hash",
@@ -209,6 +214,30 @@ def _private_keys(text: str):
         pos = end.end()
 
 
+def _jwt(value: str) -> bool:
+    """Recognize JSON claims, including whitespace and short payloads; no signature verification."""
+    header, payload, signature = value.split(".")
+    try:
+        decoded = [
+            json.loads(
+                base64.b64decode(
+                    part + "=" * (-len(part) % 4), altchars=b"-_", validate=True
+                )
+            )
+            for part in (header, payload)
+        ]
+    except (ValueError, binascii.Error, UnicodeDecodeError, RecursionError):
+        return False
+    head, claims = decoded
+    return (
+        isinstance(head, dict)
+        and isinstance(head.get("alg"), str)
+        and bool(head["alg"])
+        and isinstance(claims, dict)
+        and (bool(signature) or head["alg"] == "none")
+    )
+
+
 def _cookie_values(text: str):
     for header in COOKIE_HEADER.finditer(text):
         for pair in COOKIE_PAIR.finditer(header["pairs"]):
@@ -235,6 +264,8 @@ def find(text: str, key: str | None):
             else pattern.finditer(text)
         )
         for m in matches:
+            if kind == "jwt" and not _jwt(m.group()):
+                continue
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
     if "cookie:" in lower:
