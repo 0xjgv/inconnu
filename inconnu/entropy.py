@@ -8,13 +8,24 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 import math
 import re
 from collections import Counter
 
 from .credentials import CAMEL, KEYWORD, secret_key
 
-TOKEN = re.compile(r"(?<![\w+/-])[A-Za-z0-9+/_-]{20,}={0,2}(?![\w+/=-])")
+# Base64 prefixes for '{', '[' and the four JSON whitespace bytes.
+BASE64_JSON_START = r"(?:[eW][w-z0-9+/_-]|I[A-P]|C[Q-v]|D[Q-f])"
+TOKEN = re.compile(
+    rf"(?<![\w+/-])(?:[A-Za-z0-9+/_-]{{20,}}|{BASE64_JSON_START}[A-Za-z0-9+/_-]{{1,17}})"
+    r"={0,2}(?![\w+/=-])"
+)
+JSON_PREFIX = re.compile(BASE64_JSON_START)
+PUBLIC_JSON = frozenset(
+    {b"{}", b"[]", b'{"format":"json"}', b'{"format": "json"}', b'{ "format": "json" }'}
+)
+MAX_JSON_LEN = 16384
 UUID = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
@@ -108,6 +119,44 @@ def _encoded_text(token: str) -> bool:
     )
 
 
+def _json_envelope(token: str) -> bool | None:
+    """Return whether encoded object/array content is private, or None for other tokens."""
+    if not JSON_PREFIX.match(token):
+        return None
+    try:
+        prefix = base64.b64decode(
+            token[:24] + "=" * (-len(token) % 4 if len(token) < 24 else 0),
+            altchars=b"-_",
+            validate=True,
+        )
+        prefix = prefix.lstrip(b" \t\r\n")
+        if not prefix and len(token) > MAX_JSON_LEN:
+            # Leading whitespace hid the first byte: look further, within the size cap.
+            prefix = base64.b64decode(
+                token[:MAX_JSON_LEN], altchars=b"-_", validate=True
+            ).lstrip(b" \t\r\n")
+        if prefix and not prefix.startswith((b"{", b"[")):
+            return None
+        if len(token) > MAX_JSON_LEN:
+            return True
+        raw = base64.b64decode(
+            token + "=" * (-len(token) % 4), altchars=b"-_", validate=True
+        )
+        if raw in PUBLIC_JSON:
+            canonical = base64.b64encode(raw).decode()
+            return token not in (canonical, canonical.rstrip("="))
+        if isinstance(
+            json.loads(raw.decode("utf-8"), parse_int=str, parse_float=str),
+            (dict, list),
+        ):
+            return True
+    except RecursionError:
+        return True
+    except (ValueError, binascii.Error):
+        pass
+    return None
+
+
 def confidence(token: str, text: str, start: int, key: str | None) -> float:
     if not re.search(r"[A-Za-z]", token) or UUID.search(token) or DIGEST.match(token):
         return 0.0
@@ -164,6 +213,17 @@ def confidence(token: str, text: str, start: int, key: str | None) -> float:
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     for m in TOKEN.finditer(text):
-        conf = confidence(m.group(), text, m.start(), key)
+        token = m.group()
+        private = _json_envelope(token)
+        if private:
+            yield m.start(), m.end(), "SECRET:entropy", 0.95, "entropy"
+            continue
+        if len(token) < 20 or (
+            private is False
+            and not secret_key(key)
+            and not NEAR_SECRET.search(text, max(0, m.start() - 48), m.start())
+        ):
+            continue
+        conf = confidence(token, text, m.start(), key)
         if conf:
             yield m.start(), m.end(), "SECRET:entropy", conf, "entropy"
