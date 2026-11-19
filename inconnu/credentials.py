@@ -101,7 +101,10 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
-URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s\"'<>]+")
+# Backticks and trailing ,;)}] belong to the surrounding prose or code, as for bare key=value values.
+URL = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://(?:[^\s\"'<>\x60,;)}\]]|[,;)}\]](?=[^\s\"'<>\x60,;)}\]]))+"
+)
 QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
 KEYWORD_LITERALS = (
     "pass",
@@ -203,6 +206,7 @@ def _jwt(value: str) -> bool:
 
 
 def _query_secrets(text: str):
+    """(start, end, confidence) of each secret-named parameter value; confidence is 0 for a placeholder."""
     for url in URL.finditer(text) if "://" in text and "?" in text else ():
         query = url.group().find("?")
         if query < 0:
@@ -212,16 +216,17 @@ def _query_secrets(text: str):
         for m in QUERY_VALUE.finditer(text[start : end if end >= 0 else url.end()]):
             name = unquote(m.group("key"))
             if name.lower() in {"key", "sig"} or secret_key(name):
-                if value_confidence(unquote(m.group("s")), quoted=True):
-                    yield start + m.start("s"), start + m.end("s")
+                conf = value_confidence(unquote(m.group("s")), quoted=True)
+                yield start + m.start("s"), start + m.end("s"), conf
 
 
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
     query_secrets = list(_query_secrets(text))
-    for start, end in query_secrets:
-        yield start, end, "SECRET:url-query", 0.97, "rule"
+    for start, end, conf in query_secrets:
+        if conf:
+            yield start, end, "SECRET:url-query", 0.97, "rule"
     if "private key" in lower:
         for start, end in _private_keys(text):
             yield start, end, "SECRET:private-key", 0.99, "rule"
@@ -240,7 +245,7 @@ def find(text: str, key: str | None):
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        if any(start <= m.start(group) < end for start, end in query_secrets):
+        if any(start <= m.start(group) < end for start, end, _ in query_secrets):
             continue  # URL parameters end at &, even when a generic bare value would continue.
         conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:

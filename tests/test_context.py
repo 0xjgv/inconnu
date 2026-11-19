@@ -40,6 +40,31 @@ def test_url_query_keeps_host_path_and_other_parameters(parameter):
 
 
 @pytest.mark.parametrize(
+    "text,redacted",
+    [
+        (
+            "fetch(`https://x.example/p?token=ab12cd34`)",
+            "fetch(`https://x.example/p?token=[SECRET:url-query]`)",
+        ),
+        (
+            "see (https://x.example/p?token=ab12cd34), then",
+            "see (https://x.example/p?token=[SECRET:url-query]), then",
+        ),
+        (
+            "`https://x.example/p?token=${TOKEN}`",
+            "`https://x.example/p?token=${TOKEN}`",
+        ),
+        (
+            "https://x.example/p?token=changeme&ref=main",
+            "https://x.example/p?token=changeme&ref=main",
+        ),
+    ],
+)
+def test_url_query_value_stops_at_delimiters_and_skips_placeholders(text, redacted):
+    assert redact(text)[0] == redacted
+
+
+@pytest.mark.parametrize(
     "scheme", ["postgres", "postgresql", "mysql", "mongodb+srv", "redis", "amqp"]
 )
 @pytest.mark.parametrize(
