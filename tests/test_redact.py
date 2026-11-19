@@ -442,3 +442,50 @@ def test_second_bot_review_cases():
     assert redact("Acme Corp", key="full_name")[0] == "Acme Corp"
     letters = "qZpLkXvRtWmNbYcHdJsGfQaZxPlMkJ"
     assert letters not in redact(f"rotated {letters} today")[0]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('password="violet47', 'password="[SECRET:generic]'),
+        ("password='violet47\\", "password='[SECRET:generic]"),
+        ("password=`violet47", "password=`[SECRET:generic]"),
+        (
+            "password=" + "a" * 260 + "7b; next",
+            "password=[SECRET:generic]; next",
+        ),
+        (
+            'password="' + "a" * 4096 + '7b"; next',
+            'password="[SECRET:generic]"; next',
+        ),
+        (DSN.format("a" * 4097), DSN.format("[SECRET:url-password]")),
+        ('password="<your-password>"; next', 'password="<your-password>"; next'),
+        ('password="changeme', 'password="changeme'),
+        (
+            'password="violet47\nuser = "bob"',
+            'password="[SECRET:generic]\nuser = "bob"',
+        ),
+        ("https://example.invalid:8080/path", "https://example.invalid:8080/path"),
+        (
+            "https://proxy:8080/" + "a" * 130 + "?to=" + DSN.format("violet47"),
+            "https://proxy:8080/"
+            + "a" * 130
+            + "?to="
+            + DSN.format("[SECRET:url-password]"),
+        ),
+    ],
+)
+def test_credential_value_ends(text, expected):
+    assert redact(text)[0] == expected
+
+
+def test_long_url_scan_does_not_retry_every_prefix():
+    import time
+
+    text = ("https://u:word?" * 12_000) + "@!"
+    ports = ("https://h:1/" * 24_000) + DSN.format("violet47")
+    start = time.process_time()
+    assert redact(text) == (text, [])
+    assert "violet47" not in redact(ports)[0]
+    elapsed = time.process_time() - start
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
