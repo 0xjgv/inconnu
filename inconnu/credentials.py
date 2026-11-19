@@ -60,9 +60,9 @@ RULES = [
     ),
     (
         "stripe-key",
-        r"\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{20,}\b",
+        r"\b(?:(?:[sr]k_live_|whsec_)[A-Za-z0-9_-]+|[sr]k_test_[A-Za-z0-9]{20,}\b)",
         0.99,
-        ("_live_", "_test_"),
+        ("_live_", "_test_", "whsec_"),
     ),
     ("google-api-key", r"\bAIza[0-9A-Za-z_-]{35}(?![\w-])", 0.95, ("AIza",)),
     ("npm-token", r"\bnpm_[A-Za-z0-9]{36}\b", 0.97, ("npm_",)),
