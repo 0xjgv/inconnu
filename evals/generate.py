@@ -559,6 +559,32 @@ class Gen:
                 key=self.r.choice(["session_status", "session_type", "session_count"]),
             )
 
+    def dev_json_envelopes(self, n: int):
+        for i in range(n):
+            public = self.r.choice(
+                ['{"format":"json"}', '{"format": "json"}', '{ "format": "json" }']
+            )
+            self.add(
+                "neg:limits:public-envelope",
+                f"{jwt_segment(public)}.{jwt_segment('{}')}.release_notes",
+            )
+            private = self.r.choice(
+                [
+                    json.dumps({"password": "violet47"}),
+                    json.dumps({"format": "json", "v": [self.s(B64URL, 22)]}),
+                    json.dumps({"\u5f20\u4f1f": 123456789}),
+                    '{"pin":9}',
+                    "  [123456789]",
+                ]
+            )
+            self.add(
+                "pos:limits:private-envelope",
+                self.r.choice(["{v}", jwt_segment(public) + ".{v}.release_notes"]),
+                jwt_segment(private),
+                "SECRET",
+                "entropy",
+            )
+
     def context_jwt(self, n: int):
         for i in range(n):
             # Legal JSON whitespace changes the encoded prefix; a short payload is still a JWT.
@@ -1204,6 +1230,10 @@ def main():
         extra = Gen(seed + 3000)
         extra.context_jwt(80)
         g.records.extend(extra.records)
+        if split == "dev":
+            extra = Gen(seed + 23000)
+            extra.dev_json_envelopes(100)
+            g.records.extend(extra.records)
         if split == "test":
             heldout = Gen(seed + 13000)
             heldout.heldout_jwt(12)
