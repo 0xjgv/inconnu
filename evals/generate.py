@@ -1282,14 +1282,14 @@ class Gen:
 
     def write(self, file: Path):
         self.r.shuffle(self.records)
-        file.parent.mkdir(exist_ok=True)
+        file.parent.mkdir(parents=True, exist_ok=True)
         with file.open("w") as out:
             for i, record in enumerate(self.records):
                 out.write(json.dumps({"id": i, **record}) + "\n")
 
 
-def main():
-    for split, seed in (("dev", 1), ("test", 2)):
+def main(splits=(("dev", 1), ("test", 2)), output_dir=ROOT / "data"):
+    for split, seed in splits:
         g = Gen(seed)
         g.pii(150)
         g.persons(300)
@@ -1346,7 +1346,7 @@ def main():
         extra = Gen(seed + 6000)
         extra.context_jwe(80)
         g.records.extend(extra.records)
-        g.write(ROOT / "data" / f"{split}.jsonl")
+        g.write(output_dir / f"{split}.jsonl")
         print(f"{split}: {len(g.records)} records")
 
 

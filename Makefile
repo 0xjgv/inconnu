@@ -1,6 +1,8 @@
 BUMP ?= patch
+SCORE_PYTHON ?= uv run --group eval python
+export LABEL REASON
 
-.PHONY: help install install-cli test lint format package release eval eval-baseline eval-scorer
+.PHONY: score scoreboard scoreboard-holdout help install install-cli test lint format package release eval eval-baseline eval-scorer
 
 help: ## Show targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -44,3 +46,12 @@ eval-baseline: ## eval, plus inconnu 0.1.1 and spaCy en_core_web_sm predictions 
 eval-scorer: ## Live scorer check on the dev band (needs provider keys; at most 120 calls)
 	uv run --group eval python evals/generate.py
 	cd evals && uv run --group eval python scorer_eval.py --max-calls 120
+
+score: ## Print dev cost, normalized score, gates and leaks per kind
+	$(SCORE_PYTHON) -m evals.scoreboard score
+
+scoreboard: ## Append a measured dev row (LABEL required, REASON for regressions)
+	$(SCORE_PYTHON) -m evals.scoreboard append
+
+scoreboard-holdout: ## Check the current detector on a fresh seed of the dev templates
+	$(SCORE_PYTHON) -m evals.scoreboard holdout
