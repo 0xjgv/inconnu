@@ -49,7 +49,7 @@ select = ["E4", "E7", "E9", "F"]
 ignore = ["S101"] # assert
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S603", "S105", "S106"]
+"tests/*" = ["S603", "S607", "S105", "S106"]
 "evals/*" = ["S311", "S603", "S105", "S106"]
 
 [build-system]

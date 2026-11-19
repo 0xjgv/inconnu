@@ -10,7 +10,9 @@ Added
 - Secret rules for 19 provider and credential formats, secret-named key/value pairs, and an entropy detector for
   unknown secrets that leaves hashes, UUIDs, digests, paths and identifiers alone.
 - Person names from first-name and surname gazetteers (US Census 1990, popular-names-by-country CC0) instead of spaCy.
-- `inconnu` CLI: text or `--json` on stdin; fails closed with no stdout on error.
+- `inconnu` CLI: text or `--json` on stdin; fails closed with no stdout on error. `inconnu version`, and
+  `inconnu update [VERSION]`, which installs a signed GitHub release with uv.
+- `install.sh` and signed GitHub Releases (`make release`); the release workflow still publishes the wheel to PyPI.
 - Optional `Scorer` for the uncertain band (System One `noul` over TypeSafe, OpenRouter, Respan); off by default,
   fails closed, sends only masked shapes.
 - `evals/`: labeled data generator, runner, baselines (inconnu 0.1.1, raw spaCy, detect-secrets) and results.

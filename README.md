@@ -20,11 +20,48 @@ Findings carry the type, offsets into the input, a confidence and the detector. 
 
 ## Install
 
+The `inconnu` command needs [uv](https://docs.astral.sh/uv/) and a POSIX shell (macOS, Linux, WSL). Install it, or
+update it later with `inconnu update` (or `inconnu update v0.2.0` for one version):
+
+```bash
+curl -fsSL https://github.com/0xjgv/inconnu/releases/latest/download/install.sh | sh
+```
+
+The installer downloads `inconnu-<version>-py3-none-any.whl` and `checksums.txt` from
+[GitHub Releases](https://github.com/0xjgv/inconnu/releases), checks the wheel's SHA-256, keeps it under
+`~/.local/share/inconnu/releases` and installs it with `uv tool install`. `checksums.txt` is signed with this
+[minisign](https://jedisct1.github.io/minisign/) key. `inconnu update` always checks the signature; `install.sh` checks
+it when `minisign` is installed and warns when it is not:
+
+```text
+RWRReGpZNrXT60bmrY0IQGD5vLPBmlNwGcfZzXYkLchaAogZNhEHAQ3/
+```
+
+The one-liner runs `install.sh` before anything is verified. To verify the installer first (`checksums.txt` also
+covers `install.sh`):
+
+```bash
+base=https://github.com/0xjgv/inconnu/releases/latest/download
+curl -fsSLO "$base/install.sh" -O "$base/checksums.txt" -O "$base/checksums.txt.minisig"
+minisign -Vm checksums.txt -P RWRReGpZNrXT60bmrY0IQGD5vLPBmlNwGcfZzXYkLchaAogZNhEHAQ3/
+grep ' install.sh$' checksums.txt | shasum -a 256 -c - && sh install.sh
+```
+
+As a library:
+
 ```bash
 uv add inconnu        # or: pip install inconnu
 ```
 
 Python 3.10 or newer. The only dependency is `phonenumberslite` (pure Python, 2.7 MB).
+
+### Releasing
+
+`make release` (`BUMP=patch|minor|major`, default patch) tags the next version on `main` and pushes it; a
+`pyproject.toml` version that was never tagged is released as is. The Release workflow (`publish.yml`) tests, builds
+the wheel, `install.sh` and `checksums.txt`, signs `checksums.txt` in the `release` environment with the
+`MINISIGN_SECRET_KEY` secret, uploads a draft, installs and updates from the draft, publishes it, then uploads the
+wheel to PyPI. `make install-cli` installs the current checkout as the global `inconnu` command.
 
 ## API
 

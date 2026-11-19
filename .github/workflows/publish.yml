@@ -1,12 +1,22 @@
-name: Publish to PyPI
+name: Release
 
 on:
-  release:
-    types: [published]
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+  # A manual run only builds and tests; signing and publishing need a tag push.
+  # To retry a failed release, re-run the tag's run.
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   test:
@@ -16,98 +26,199 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     env:
       UV_PYTHON: ${{ matrix.python-version }}
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - run: uv sync --group dev
+      - run: uv run pytest -rf
+      - run: |
+          uv run ruff check .
+          uv run ruff format --check .
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-    - name: Install dependencies
-      run: uv sync --group dev
-
-    - name: Run tests
-      run: uv run pytest -rf
-
-    - name: Run linting
-      run: |
-        uv run ruff check .
-        uv run ruff format --check .
-
-  build-and-publish:
+  build:
     needs: test
+    # Supply-chain guard: only the repository owner can start or re-run a release.
+    if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the version, and that a release tag is on main and matches it
+        id: version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
+          test "$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' inconnu/__init__.py)" = "$version"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            git merge-base --is-ancestor HEAD origin/main
+            test "$RELEASE_TAG" = "v$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+
+      - name: Build release assets
+        run: sh scripts/package-release.sh
+
+      - name: Smoke-test the installer against the assets
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          export UV_TOOL_DIR="$RUNNER_TEMP/uv-tools" UV_TOOL_BIN_DIR="$RUNNER_TEMP/bin"
+          export INCONNU_HOME="$RUNNER_TEMP/share"
+          INCONNU_DOWNLOAD_BASE="$PWD/dist-release" INCONNU_VERSION="v$RELEASE_VERSION" sh install.sh
+          test "$("$UV_TOOL_BIN_DIR/inconnu" version)" = "$RELEASE_VERSION"
+          test "$(echo 'mail jane.doe@example.org' | "$UV_TOOL_BIN_DIR/inconnu")" = "mail [EMAIL]"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: inconnu-release
+          overwrite: true
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Holds MINISIGN_SECRET_KEY; no other job can read it.
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # This job needs only the minisign installer from the repository.
+          sparse-checkout: scripts/install-minisign.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: inconnu-release
+          path: dist-release
+      - name: Install minisign
+        run: |
+          scripts/install-minisign.sh "$RUNNER_TEMP/minisign"
+          echo "$RUNNER_TEMP/minisign" >> "$GITHUB_PATH"
+      - name: Sign checksums.txt
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          test -n "$MINISIGN_SECRET_KEY" || { echo "MINISIGN_SECRET_KEY is not set in the release environment" >&2; exit 1; }
+          key="$RUNNER_TEMP/minisign.key"
+          (umask 077 && printf '%s\n' "$MINISIGN_SECRET_KEY" > "$key")
+          minisign -S -s "$key" -m dist-release/checksums.txt -t "inconnu $RELEASE_TAG"
+          rm -f "$key"
+          # The installer's embedded key must accept the signature before anything is uploaded.
+          minisign -V -P "$(sed -n 's/^PUBLIC_KEY=//p' dist-release/install.sh)" -m dist-release/checksums.txt
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true || {
+              echo "Release $RELEASE_TAG is already published; assets will not be replaced." >&2
+              exit 1
+            }
+            gh release upload "$RELEASE_TAG" dist-release/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist-release/* --verify-tag --draft \
+              --title "inconnu $RELEASE_TAG" --generate-notes
+          fi
+
+  verify:
+    needs: [build, draft]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Draft releases are only visible to tokens that can write.
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+      INCONNU_HOME: ${{ github.workspace }}/share
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # This job needs only the minisign installer from the repository.
+          sparse-checkout: scripts/install-minisign.sh
+          sparse-checkout-cone-mode: false
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - name: Install minisign
+        run: |
+          scripts/install-minisign.sh "$RUNNER_TEMP/minisign"
+          echo "$RUNNER_TEMP/minisign" >> "$GITHUB_PATH"
+      - name: Download the draft release
+        run: |
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/draft"
+          echo "INCONNU_DOWNLOAD_BASE=$RUNNER_TEMP/draft" >> "$GITHUB_ENV"
+          echo "INCONNU_VERSION=$RELEASE_TAG" >> "$GITHUB_ENV"
+      - name: Install with the draft's install.sh (minisign verifies the signature)
+        run: |
+          UV_TOOL_DIR="$RUNNER_TEMP/installed" UV_TOOL_BIN_DIR="$RUNNER_TEMP/installed/bin" \
+            sh "$INCONNU_DOWNLOAD_BASE/install.sh"
+          test "$("$RUNNER_TEMP/installed/bin/inconnu" version)" = "$RELEASE_VERSION"
+      - name: Update with the new inconnu (its embedded key verifies the signature)
+        run: |
+          UV_TOOL_DIR="$RUNNER_TEMP/updated" UV_TOOL_BIN_DIR="$RUNNER_TEMP/updated/bin" \
+            "$RUNNER_TEMP/installed/bin/inconnu" update
+          test "$("$RUNNER_TEMP/updated/bin/inconnu" version)" = "$RELEASE_VERSION"
+      - name: Update from the previous published release
+        run: |
+          previous=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          if [ -z "$previous" ]; then
+            echo "No published release to update from."
+            exit 0
+          fi
+          # Releases before this workflow (v0.1.x) ship no signed checksums and no `inconnu update`.
+          if ! gh release view "$previous" --json assets --jq '.assets[].name' | grep -qx checksums.txt.minisig; then
+            echo "$previous predates signed releases; nothing to update from."
+            exit 0
+          fi
+          gh release download "$previous" --dir "$RUNNER_TEMP/previous" --pattern 'inconnu-*.whl'
+          export UV_TOOL_DIR="$RUNNER_TEMP/previous/tools" UV_TOOL_BIN_DIR="$RUNNER_TEMP/previous/bin"
+          uv tool install --quiet --python '>=3.10' "$RUNNER_TEMP"/previous/inconnu-*.whl
+          "$UV_TOOL_BIN_DIR/inconnu" update "$RELEASE_TAG"
+          test "$("$UV_TOOL_BIN_DIR/inconnu" version)" = "$RELEASE_VERSION"
+
+  promote:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  pypi:
+    # Library users install with pip or uv; PyPI trusted publishing is bound to this file and environment.
+    needs: promote
+    runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/inconnu
     permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
-      contents: write  # For creating GitHub releases
-
+      id-token: write
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-    - name: Build package
-      run: uv build
-
-    - name: Publish to PyPI
-      if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        attestations: true  # Enable PEP 740 attestations (default in v1.11.0+)
-
-    - name: Create GitHub Release Assets
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/*
-
-  publish-to-testpypi:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/inconnu
-    permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-    - name: Build package
-      run: uv build
-
-    - name: Publish to Test PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
-        attestations: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: inconnu-release
+          path: dist-release
+      - name: Keep only the wheel
+        run: mkdir dist && mv dist-release/inconnu-*.whl dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
