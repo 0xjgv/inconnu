@@ -40,6 +40,31 @@ def test_url_query_keeps_host_path_and_other_parameters(parameter):
 
 
 @pytest.mark.parametrize(
+    "text,redacted",
+    [
+        (
+            "fetch(`https://x.example/p?token=ab12cd34`)",
+            "fetch(`https://x.example/p?token=[SECRET:url-query]`)",
+        ),
+        (
+            "see (https://x.example/p?token=ab12cd34), then",
+            "see (https://x.example/p?token=[SECRET:url-query]), then",
+        ),
+        (
+            "`https://x.example/p?token=${TOKEN}`",
+            "`https://x.example/p?token=${TOKEN}`",
+        ),
+        (
+            "https://x.example/p?token=changeme&ref=main",
+            "https://x.example/p?token=changeme&ref=main",
+        ),
+    ],
+)
+def test_url_query_value_stops_at_delimiters_and_skips_placeholders(text, redacted):
+    assert redact(text)[0] == redacted
+
+
+@pytest.mark.parametrize(
     "scheme", ["postgres", "postgresql", "mysql", "mongodb+srv", "redis", "amqp"]
 )
 @pytest.mark.parametrize(
@@ -70,6 +95,20 @@ def test_dsn_password_only_and_long_password(scheme, user, password):
 def test_jwt_redacts_header_claims_and_signature(header, claims):
     token = jwt(header, claims)
     assert redact("value=" + token)[0] == "value=[SECRET:jwt]"
+
+
+@pytest.mark.parametrize(
+    "prefix,token",
+    [
+        ("", jwt(json.dumps({"alg": "RS256", "x5c": ["MIIC" * 1500]}), {})),
+        ("", jwt('{"alg":"HS256"}', {"groups": [f"g-{i:05d}" for i in range(1500)]})),
+        ("", jwt('{"alg":"HS256"}', {}).rsplit(".", 1)[0] + "." + "A" * 2400),
+        ("v2.", jwt('{"alg":"HS256"}', {"sub": "user-account"})),
+    ],
+    ids=["large-header", "large-claims", "large-signature", "after-dot"],
+)
+def test_jwt_of_any_size_after_a_dot_is_redacted_whole(prefix, token):
+    assert redact("value " + prefix + token)[0] == "value " + prefix + "[SECRET:jwt]"
 
 
 def test_unsigned_jwt_claims_are_sensitive():
@@ -214,6 +253,9 @@ def test_credential_candidates_remain_bounded():
         started = time.perf_counter()
         redact(cell)
         assert time.perf_counter() - started < 0.5
+    started = time.perf_counter()
+    redact("a=1\n" + "\n" * 32000, key="Cookie")  # every blank line is a pair anchor
+    assert time.perf_counter() - started < 0.5
 
 
 def test_cookie_fails_closed_on_unterminated_quote_and_secret_column():
@@ -236,6 +278,19 @@ def test_person_context_in_prose():
         redact("Assigned to Security Lead yesterday.")[0]
         == "Assigned to Security Lead yesterday."
     )
+
+
+def test_cookie_lines_each_parsed_and_header_ends_at_its_line():
+    assert (
+        redact("theme=dark\nsession=second-secret", key="Cookie")[0]
+        == "theme=dark\nsession=[SECRET:cookie]"
+    )
+    assert "hunter2x" not in redact("Cookie:\nlogin password=hunter2x")[0]
+    for space in ("\u00a0", "\f"):
+        assert (
+            redact(f"Cookie: theme=dark;{space}sid=ab12ab12")[0]
+            == f"Cookie: theme=dark;{space}sid=[SECRET:cookie]"
+        )
 
 
 def test_quoted_cookie_preserves_escaped_quote_and_separators():
