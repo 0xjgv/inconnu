@@ -98,6 +98,11 @@ RULES = [
     (kind, re.compile(pattern), conf, tuple(lit.lower() for lit in literals))
     for kind, pattern, conf, literals in RULES
 ]
+# Compact JWE: protected header, encrypted key (empty for direct encryption), IV, ciphertext, tag.
+JWE = re.compile(
+    r"(?<![\w.-])(?P<header>[A-Za-z0-9_-]{2,4096})\.[A-Za-z0-9_-]{0,16384}\."
+    r"[A-Za-z0-9_-]{1,2048}\.[A-Za-z0-9_-]{0,16384}\.[A-Za-z0-9_-]{1,2048}(?![\w=-]|\.[\w.-])"
+)
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
@@ -180,6 +185,25 @@ def value_confidence(value: str, quoted: bool) -> float:
     return 0.9 if len(value) >= 4 else 0.5
 
 
+def _jwe_spans(text: str):
+    """Recognize compact JWE by its protected header without decrypting or verifying the value."""
+    if text.count(".") < 4:
+        return
+    for m in JWE.finditer(text):
+        encoded = m["header"]
+        try:
+            raw = base64.b64decode(
+                encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True
+            )
+            header = json.loads(raw.decode("utf-8"))
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(header, dict) and all(
+            isinstance(header.get(k), str) and header[k] for k in ("alg", "enc")
+        ):
+            yield m.span()
+
+
 def _private_keys(text: str):
     """PEM private key blocks, any size, in one pass. A BEGIN with no END redacts to the end of the text."""
     pos = 0
@@ -248,6 +272,8 @@ def _cookie_ranges(text: str, key: str | None):
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    for start, end in _jwe_spans(text):
+        yield start, end, "SECRET:jwe", 0.95, "rule"
     cookie_ranges = _cookie_ranges(text, key)
     for start, end, set_cookie in cookie_ranges:
         for i, m in enumerate(COOKIE_PAIR.finditer(text[start:end])):

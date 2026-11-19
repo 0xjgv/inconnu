@@ -440,6 +440,33 @@ class Gen:
                 "entropy",
             )
 
+    def context_jwe(self, n: int):
+        def encode(data: bytes) -> str:
+            return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+        for i in range(n):
+            alg = "dir" if i % 2 else "RSA-OAEP"
+            header = encode(json.dumps({"alg": alg, "enc": "A256GCM"}).encode())
+            segments = [
+                encode(self.r.randbytes(length))
+                for length in (0 if alg == "dir" else 64, 12, 80, 16)
+            ]
+            self.add(
+                "pos:context:jwe-direct"
+                if alg == "dir"
+                else "pos:context:jwe-wrapped-key",
+                self.r.choice(["{v}", "received ({v})", "ciphertext: {v}."]),
+                ".".join([header, *segments]),
+                "SECRET",
+                "jwe",
+            )
+            self.add("neg:context:jwe-version", f"build.2.{i}.1.7")
+            self.add("neg:context:jwe-host", f"node-{i}.eu.prod.example.net")
+            self.add("neg:context:jwe-id", f"tenant-{i}.repo.scan.finding.item")
+            # Public binary fixture with the same segment lengths as the positive.
+            public_header = encode(f"public fixture {i}".encode())
+            self.add("neg:context:jwe-nonjson", ".".join([public_header, *segments]))
+
     # ---------- negatives ----------
 
     def context_urls(self, n: int):
@@ -1170,6 +1197,9 @@ def main():
             heldout = Gen(seed + 15000)
             heldout.heldout_ids(12)
             g.records.extend(heldout.records)
+        extra = Gen(seed + 6000)
+        extra.context_jwe(80)
+        g.records.extend(extra.records)
         g.write(ROOT / "data" / f"{split}.jsonl")
         print(f"{split}: {len(g.records)} records")
 
