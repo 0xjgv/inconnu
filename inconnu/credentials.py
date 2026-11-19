@@ -127,6 +127,8 @@ COOKIE_NAME = r"[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+"
 COOKIE_HEADER = re.compile(
     rf"(?i)(?<![\w-])cookie:[ \t]*(?={COOKIE_NAME}[ \t]*=)(?P<pairs>[^\r\n]*)"
 )
+# session, laravel_session, JSESSIONID, PHPSESSID, ASP.NET_SessionId, connect.sid; not session_count
+SESSION_COOKIE = re.compile(r"(?i)(?:sess(?:ion)?(?:[_-]?id)?|(?<![a-z0-9])sid)$")
 COOKIE_PAIR = re.compile(
     rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
 )
@@ -182,7 +184,7 @@ def _private_keys(text: str):
 def _cookie_values(text: str):
     for header in COOKIE_HEADER.finditer(text):
         for pair in COOKIE_PAIR.finditer(header["pairs"]):
-            if pair["name"].lower() == "session" or secret_key(pair["name"]):
+            if SESSION_COOKIE.search(pair["name"]) or secret_key(pair["name"]):
                 value = pair["value"].rstrip(" \t")
                 if value:
                     start = header.start("pairs") + pair.start("value")

@@ -157,6 +157,11 @@ def test_secret_context(text, expected):
             "cookie: theme=dark; SESSION\t=\t[SECRET:generic]; locale=en-US",
         ),
         ("Cookie: session_id=violet47", "Cookie: session_id=[SECRET:generic]"),
+        (
+            "Cookie: JSESSIONID=violet47; PHPSESSID=violet47; connect.sid=violet47",
+            "Cookie: JSESSIONID=[SECRET:generic]; PHPSESSID=[SECRET:generic]; "
+            "connect.sid=[SECRET:generic]",
+        ),
         ("Cookie: theme =dark; locale =en-US", "Cookie: theme =dark; locale =en-US"),
         ("Cookie: session_count =1947", "Cookie: session_count =1947"),
         ("session =violet47", "session =violet47"),
