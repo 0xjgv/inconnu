@@ -103,6 +103,18 @@ PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
 URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s\"'<>]+")
 QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
+COOKIE_HEADER = re.compile(r"(?im)(?<![\w-])(?P<set>set-)?cookie\s*:\s*(?P<s>[^\r\n]*)")
+COOKIE_PAIR = re.compile(
+    r'(?:^|;)\s*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
+    r'|"(?P<unclosed>[^\r\n]*)|(?P<bare>[^;\r\n]*))'
+)
+SESSION_KEY = re.compile(
+    r"(?i)(?:^|[_.-])(?:session|sessionid|jsessionid|phpsessid|connect\.sid|asp\.net_sessionid)$"
+)
+COOKIE_PREFERENCES = frozenset({"theme", "locale", "language", "color_scheme"})
+COOKIE_ATTRIBUTES = frozenset(
+    {"path", "domain", "expires", "max-age", "samesite", "priority"}
+)
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -119,7 +131,7 @@ KEYWORD_LITERALS = (
 KEYWORD = (
     r"(?:passw(?:or)?d|passwd|pwd|pass|secret|token|api[_-]?key|apikey|access[_-]?key|secret[_-]?key|private[_-]?key"
     r"|account[_-]?key|signing[_-]?key|encryption[_-]?key|master[_-]?key|auth[_-]?key|client[_-]?secret|credentials?"
-    r"|session[_-]?(?:id|key)|cookie|signature)"
+    r"|session(?:[_-]?(?:id|key))?|cookie|signature)"
 )
 SECRET_KEY = re.compile(
     rf"(?:^|[^a-z0-9]){KEYWORD}$"
@@ -142,7 +154,9 @@ def secret_key(key: str | None) -> bool:
     return (
         bool(key)
         and len(key) <= 64
-        and bool(SECRET_KEY.search(CAMEL.sub("_", key).lower()))
+        and bool(
+            SECRET_KEY.search(CAMEL.sub("_", key).lower()) or SESSION_KEY.search(key)
+        )
     )
 
 
@@ -216,9 +230,35 @@ def _query_secrets(text: str):
                     yield start + m.start("s"), start + m.end("s")
 
 
+def _cookie_ranges(text: str, key: str | None):
+    ranges = (
+        [(*m.span("s"), bool(m.group("set"))) for m in COOKIE_HEADER.finditer(text)]
+        if "cookie" in text.lower()
+        else []
+    )
+    if (
+        key
+        and key.lower().replace("_", "-") in {"cookie", "set-cookie"}
+        and COOKIE_PAIR.match(text)
+    ):
+        ranges.append((0, len(text), key.lower() != "cookie"))
+    return ranges
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    cookie_ranges = _cookie_ranges(text, key)
+    for start, end, set_cookie in cookie_ranges:
+        for i, m in enumerate(COOKIE_PAIR.finditer(text[start:end])):
+            name = m.group("key").lower()
+            if name in COOKIE_PREFERENCES or (
+                set_cookie and i > 0 and name in COOKIE_ATTRIBUTES
+            ):
+                continue
+            a, b = m.span(m.lastgroup)
+            if a < b and value_confidence(text[start + a : start + b], quoted=True):
+                yield start + a, start + b, "SECRET:cookie", 0.97, "rule"
     query_secrets = list(_query_secrets(text))
     for start, end in query_secrets:
         yield start, end, "SECRET:url-query", 0.97, "rule"
@@ -240,12 +280,16 @@ def find(text: str, key: str | None):
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
+        if any(start <= m.start(group) < end for start, end, _ in cookie_ranges):
+            continue  # A cookie header contains attributes and preferences as well as credentials.
         if any(start <= m.start(group) < end for start, end in query_secrets):
             continue  # URL parameters end at &, even when a generic bare value would continue.
         conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
-    if secret_key(key):
+    if secret_key(key) and not (
+        cookie_ranges and key.lower().replace("_", "-") in {"cookie", "set-cookie"}
+    ):
         value = text.strip()
         conf = value_confidence(value, quoted=True)
         if conf:

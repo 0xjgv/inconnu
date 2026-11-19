@@ -475,6 +475,63 @@ class Gen:
             self.add("neg:context:url-password", f"{scheme}://db.internal:5432/prod")
             self.add("neg:context:clone-url", "https://git.example/acme/repo.git")
 
+    def context_cookies(self, n: int):
+        for i in range(n):
+            cookie = self.r.choice(
+                [
+                    "session",
+                    "connect.sid",
+                    "JSESSIONID",
+                    "PHPSESSID",
+                    "__Host-session",
+                    "sessionid",
+                ]
+            )
+            self.add(
+                "pos:context:cookie",
+                self.r.choice(
+                    [
+                        f"Cookie: theme=dark; {cookie}={{v}}; locale=en",
+                        f"Set-Cookie: {cookie}={{v}}; Path=/; HttpOnly; Secure",
+                    ]
+                ),
+                self.s(HEXD, 32),
+                "SECRET",
+                "cookie",
+            )
+            self.add(
+                "neg:context:cookie",
+                self.r.choice(
+                    [
+                        "Cookie: theme=dark; locale=en",
+                        "Set-Cookie: theme=dark; Path=/; SameSite=Lax",
+                        "session_count=42",
+                        "cookie_policy=required",
+                    ]
+                ),
+            )
+            self.add(
+                "pos:context:session-column",
+                "{v}",
+                self.s(HEXD, 32),
+                "SECRET",
+                "generic",
+                key=self.r.choice(
+                    [
+                        "session",
+                        "session_id",
+                        "sessionId",
+                        "connect.sid",
+                        "users.session_token",
+                    ]
+                ),
+            )
+            self.add(
+                "neg:context:session-column",
+                "active",
+                key=self.r.choice(["session_status", "session_type", "session_count"]),
+            )
+
     def context_jwt(self, n: int):
         for i in range(n):
             # Legal JSON whitespace changes the encoded prefix; a short payload is still a JWT.
@@ -521,6 +578,33 @@ class Gen:
             self.add(
                 "neg:holdout:clone-url",
                 f"origin: ssh://git@code.internal/team/repo-{i}.git",
+            )
+
+    def heldout_cookies(self, n: int):
+        for i in range(n):
+            self.add(
+                "pos:holdout:cookie",
+                'custom_login="{v}"; Path=/private; SameSite=Strict',
+                self.s(HEXD, 32),
+                "SECRET",
+                "cookie",
+                key="set_cookie",
+            )
+            self.add(
+                "pos:holdout:session-column",
+                "{v}",
+                self.s(HEXD, 32),
+                "SECRET",
+                "generic",
+                key="accounts.sessionId",
+            )
+            self.add(
+                "neg:holdout:cookie",
+                "language=es; Max-Age=3600; SameSite=Strict",
+                key="Set-Cookie",
+            )
+            self.add(
+                "neg:holdout:session-column", "expired", key="accounts.sessionStatus"
             )
 
     def heldout_jwt(self, n: int):
@@ -911,6 +995,13 @@ def main():
         if split == "test":
             heldout = Gen(seed + 11000)
             heldout.heldout_urls(12)
+            g.records.extend(heldout.records)
+        extra = Gen(seed + 2000)
+        extra.context_cookies(80)
+        g.records.extend(extra.records)
+        if split == "test":
+            heldout = Gen(seed + 12000)
+            heldout.heldout_cookies(12)
             g.records.extend(heldout.records)
         extra = Gen(seed + 3000)
         extra.context_jwt(80)
