@@ -69,7 +69,9 @@ RULES = [
     ("sendgrid-key", r"\bSG\.[\w-]{22}\.[\w-]{43}\b", 0.99, ("SG.",)),
     (
         "jwt",
-        r"(?<![\w.-])[A-Za-z0-9_-]{2,4096}\.[A-Za-z0-9_-]{2,16384}\.[A-Za-z0-9_-]{0,2048}(?![\w-])",
+        # The header is a JSON object: base64url of "{" plus a quote or whitespace is ey or ew. Starting only
+        # there, or after a dot, keeps the scan linear with unbounded segments.
+        r"(?<![\w-])e[wy][A-Za-z0-9_-]+\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*(?![\w-])",
         0.95,
         (".",),
     ),
