@@ -110,6 +110,20 @@ URL = re.compile(
     r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://(?:[^\s\"'<>\x60,;)}\]]|[,;)}\]](?=[^\s\"'<>\x60,;)}\]]))+"
 )
 QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
+COOKIE_HEADER = re.compile(
+    r"(?im)(?<![\w-])(?P<set>set-)?cookie[ \t]*:[ \t]*(?P<s>[^\r\n]*)"
+)
+COOKIE_PAIR = re.compile(
+    r'(?m)(?:^|;)[^\S\n]*(?P<key>[^\s=;]+)[^\S\r\n]*=[^\S\r\n]*(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
+    r'|"(?P<unclosed>[^\r\n]*)|(?P<bare>[^;\r\n]*))'
+)
+SESSION_KEY = re.compile(
+    r"(?i)(?:^|[_.-])(?:session|sessionid|jsessionid|phpsessid|connect\.sid|asp\.net_sessionid)$"
+)
+COOKIE_PREFERENCES = frozenset({"theme", "locale", "language", "color_scheme"})
+COOKIE_ATTRIBUTES = frozenset(
+    {"path", "domain", "expires", "max-age", "samesite", "priority"}
+)
 # host:8080/path?x=a@b (or ?, #): a port then a path, query or fragment, not user:password@host
 URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
@@ -128,7 +142,7 @@ KEYWORD_LITERALS = (
 KEYWORD = (
     r"(?:passw(?:or)?d|passwd|pwd|pass|secret|token|api[_-]?key|apikey|access[_-]?key|secret[_-]?key|private[_-]?key"
     r"|account[_-]?key|signing[_-]?key|encryption[_-]?key|master[_-]?key|auth[_-]?key|client[_-]?secret|credentials?"
-    r"|session[_-]?(?:id|key)|cookie|signature)"
+    r"|session(?:[_-]?(?:id|key))?|cookie|signature)"
 )
 SECRET_KEY = re.compile(
     rf"(?:^|[^a-z0-9])(?:{KEYWORD}|authorization)$"
@@ -140,15 +154,6 @@ KEY_VALUE = re.compile(
     r"|'(?P<sq>(?:[^'\\\n]|\\.?)*)(?:'|(?=\n|\Z))"
     r"|\x60(?P<bq>[^\x60\n]*)(?:\x60|(?=\n|\Z))"
     r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
-)
-COOKIE_NAME = r"[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+"
-COOKIE_HEADER = re.compile(
-    rf"(?i)(?<![\w-])cookie:[ \t]*(?={COOKIE_NAME}[ \t]*=)(?P<pairs>[^\r\n]*)"
-)
-# session, laravel_session, JSESSIONID, PHPSESSID, ASP.NET_SessionId, connect.sid; not session_count
-SESSION_COOKIE = re.compile(r"(?i)(?:sess(?:ion)?(?:[_-]?id)?|(?<![a-z0-9])sid)$")
-COOKIE_PAIR = re.compile(
-    rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
 )
 # [REDACTED] and the placeholders this redactor emits, so its own output stays as it is.
 BRACKET_PLACEHOLDER = re.compile(
@@ -168,7 +173,7 @@ CODE_VALUE = re.compile(
 def secret_key(key: str | None) -> bool:
     component = key.rsplit(".", 1)[-1] if key else ""
     return 0 < len(component) <= 64 and bool(
-        SECRET_KEY.search(CAMEL.sub("_", component).lower())
+        SECRET_KEY.search(CAMEL.sub("_", component).lower()) or SESSION_KEY.search(key)
     )
 
 
@@ -259,19 +264,37 @@ def _query_secrets(text: str):
                 yield start + m.start("s"), start + m.end("s"), conf
 
 
-def _cookie_values(text: str):
-    for header in COOKIE_HEADER.finditer(text):
-        for pair in COOKIE_PAIR.finditer(header["pairs"]):
-            if SESSION_COOKIE.search(pair["name"]) or secret_key(pair["name"]):
-                value = pair["value"].rstrip(" \t")
-                if value:
-                    start = header.start("pairs") + pair.start("value")
-                    yield start, start + len(value)
+def _cookie_ranges(text: str, key: str | None):
+    ranges = (
+        [(*m.span("s"), bool(m.group("set"))) for m in COOKIE_HEADER.finditer(text)]
+        if "cookie" in text.lower()
+        else []
+    )
+    if (
+        key
+        and key.lower().replace("_", "-") in {"cookie", "set-cookie"}
+        and COOKIE_PAIR.match(text)
+    ):
+        ranges.append((0, len(text), key.lower() != "cookie"))
+    return ranges
 
 
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    cookie_ranges = _cookie_ranges(text, key)
+    for start, end, set_cookie in cookie_ranges:
+        for i, m in enumerate(COOKIE_PAIR.finditer(text[start:end])):
+            name = m.group("key").lower()
+            if name in COOKIE_PREFERENCES or (
+                set_cookie and i > 0 and name in COOKIE_ATTRIBUTES
+            ):
+                continue
+            a, b = m.span(m.lastgroup)
+            if m.lastgroup == "bare":
+                b = a + len(m.group("bare").rstrip())
+            if a < b and value_confidence(text[start + a : start + b], quoted=True):
+                yield start + a, start + b, "SECRET:cookie", 0.97, "rule"
     query_secrets = list(_query_secrets(text))
     for start, end, conf in query_secrets:
         if conf:
@@ -293,15 +316,12 @@ def find(text: str, key: str | None):
                 continue
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
-    if "cookie:" in lower:
-        for start, end in _cookie_values(text):
-            yield start, end, "SECRET:generic", 0.95, "keyword"
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
-        if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
-            continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
+        if any(start <= m.start(group) < end for start, end, _ in cookie_ranges):
+            continue  # A cookie header contains attributes and preferences as well as credentials.
         if any(start <= m.start(group) < end for start, end, _ in query_secrets):
             continue  # URL parameters end at &, even when a generic bare value would continue.
         operator = text[m.end("key") : m.start(group)]
@@ -314,7 +334,9 @@ def find(text: str, key: str | None):
         )
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
-    if secret_key(key):
+    if secret_key(key) and not (
+        cookie_ranges and key.lower().replace("_", "-") in {"cookie", "set-cookie"}
+    ):
         value = text.strip()
         conf = value_confidence(value, quoted=True)
         if conf:

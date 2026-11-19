@@ -178,20 +178,23 @@ def test_secret_context(text, expected):
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("Cookie: session =violet47", "Cookie: session =[SECRET:generic]"),
+        ("Cookie: session =violet47", "Cookie: session =[SECRET:cookie]"),
         (
             "cookie: theme=dark; SESSION\t=\t1947; locale=en-US",
-            "cookie: theme=dark; SESSION\t=\t[SECRET:generic]; locale=en-US",
+            "cookie: theme=dark; SESSION\t=\t[SECRET:cookie]; locale=en-US",
         ),
-        ("Cookie: session_id=violet47", "Cookie: session_id=[SECRET:generic]"),
+        ("Cookie: session_id=violet47", "Cookie: session_id=[SECRET:cookie]"),
         (
             "Cookie: JSESSIONID=violet47; PHPSESSID=violet47; connect.sid=violet47",
-            "Cookie: JSESSIONID=[SECRET:generic]; PHPSESSID=[SECRET:generic]; "
-            "connect.sid=[SECRET:generic]",
+            "Cookie: JSESSIONID=[SECRET:cookie]; PHPSESSID=[SECRET:cookie]; "
+            "connect.sid=[SECRET:cookie]",
         ),
         ("Cookie: theme =dark; locale =en-US", "Cookie: theme =dark; locale =en-US"),
-        ("Cookie: session_count =1947", "Cookie: session_count =1947"),
-        ("session =violet47", "session =violet47"),
+        (
+            "Set-Cookie: sid = abc123xyz ; Path=/",
+            "Set-Cookie: sid = [SECRET:cookie] ; Path=/",
+        ),
+        ("session =violet47", "session =[SECRET:generic]"),
     ],
 )
 def test_cookie_pairs_allow_horizontal_whitespace(text, expected):
