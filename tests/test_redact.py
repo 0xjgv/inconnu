@@ -328,3 +328,32 @@ def test_second_bot_review_cases():
     assert redact("Acme Corp", key="full_name")[0] == "Acme Corp"
     letters = "qZpLkXvRtWmNbYcHdJsGfQaZxPlMkJ"
     assert letters not in redact(f"rotated {letters} today")[0]
+
+
+@pytest.mark.parametrize(
+    ("text", "key", "expected"),
+    [
+        ("password=violet.green", None, "password=[SECRET:generic]"),
+        ("password = violet.green", None, "password = [SECRET:generic]"),
+        ("password=env.violet", None, "password=[SECRET:generic]"),
+        ("password=1947", None, "password=[SECRET:generic]"),
+        ("[foo]", "password", "[SECRET:generic]"),
+        ("[VIOLET]", "password", "[SECRET:generic]"),
+        ("1947", "token", "[SECRET:generic]"),
+        ("violet47", "authorization", "[SECRET:generic]"),
+        ("password = settings.SECRET_KEY", None, "password = settings.SECRET_KEY"),
+        (
+            "const password = req.body.password;",
+            None,
+            "const password = req.body.password;",
+        ),
+        ("password = getpass.getpass()", None, "password = getpass.getpass()"),
+        ("const color = violet.green;", None, "const color = violet.green;"),
+        ("[foo]", "array", "[foo]"),
+        ("1947", "year", "1947"),
+        ("null", "password", "null"),
+        ("[REDACTED]", "password", "[REDACTED]"),
+    ],
+)
+def test_explicit_credential_context(text, key, expected):
+    assert redact(text, key=key)[0] == expected
