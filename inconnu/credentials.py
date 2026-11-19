@@ -133,10 +133,9 @@ CODE_VALUE = re.compile(
 
 
 def secret_key(key: str | None) -> bool:
-    return (
-        bool(key)
-        and len(key) <= 64
-        and bool(SECRET_KEY.search(CAMEL.sub("_", key).lower()))
+    component = key.rsplit(".", 1)[-1] if key else ""
+    return 0 < len(component) <= 64 and bool(
+        SECRET_KEY.search(CAMEL.sub("_", component).lower())
     )
 
 
