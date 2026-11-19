@@ -107,7 +107,7 @@ COOKIE_HEADER = re.compile(
     r"(?im)(?<![\w-])(?P<set>set-)?cookie[ \t]*:[ \t]*(?P<s>[^\r\n]*)"
 )
 COOKIE_PAIR = re.compile(
-    r'(?m)(?:^|;)[ \t]*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
+    r'(?m)(?:^|;)[^\S\n]*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
     r'|"(?P<unclosed>[^\r\n]*)|(?P<bare>[^;\r\n]*))'
 )
 SESSION_KEY = re.compile(

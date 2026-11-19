@@ -176,6 +176,11 @@ def test_cookie_lines_each_parsed_and_header_ends_at_its_line():
         == "theme=dark\nsession=[SECRET:cookie]"
     )
     assert "hunter2x" not in redact("Cookie:\nlogin password=hunter2x")[0]
+    for space in (" ", "\f"):
+        assert (
+            redact(f"Cookie: theme=dark;{space}sid=ab12ab12")[0]
+            == f"Cookie: theme=dark;{space}sid=[SECRET:cookie]"
+        )
 
 
 def test_quoted_cookie_preserves_escaped_quote_and_separators():
