@@ -69,3 +69,11 @@ def test_json_mode_rejects_input_python_cannot_parse():
     )  # ValueError without a line number
     assert result.returncode == 2
     assert result.stdout == ""
+
+
+def test_version_command_prints_the_package_version():
+    from inconnu import __version__
+
+    result = run(["version"], "")
+    assert result.returncode == 0
+    assert result.stdout == f"{__version__}\n"

@@ -1,10 +1,21 @@
-.PHONY: help install test lint format eval eval-baseline eval-scorer
+BUMP ?= patch
+
+.PHONY: help install install-cli test lint format package release eval eval-baseline eval-scorer
 
 help: ## Show targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
 install: ## Install the package with the dev and eval groups
 	uv sync --group dev --group eval
+
+install-cli: package ## Build this checkout and install it as the global inconnu command
+	INCONNU_LOCAL_BUILD=1 INCONNU_DOWNLOAD_BASE="$(CURDIR)/dist-release" sh install.sh
+
+package: ## Build the release assets in dist-release/
+	sh scripts/package-release.sh
+
+release: ## Tag the next version on main and push it (BUMP=patch|minor|major); CI publishes the release
+	BUMP=$(BUMP) sh scripts/release.sh
 
 test: ## Run the tests
 	uv run pytest -rf
