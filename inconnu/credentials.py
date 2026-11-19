@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import re
 
+URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:")
+
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
 RULES = [
@@ -78,7 +80,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
+        rf"{URL_USERINFO_PREFIX.pattern}(?P<s>\S+)@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
         0.97,
         ("://",),
     ),
@@ -121,7 +123,10 @@ SECRET_KEY = re.compile(
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
+    r"(?:\"(?P<dq>(?:[^\"\\]|\\(?:[\s\S]|\Z))*)(?:\"|\Z)"
+    r"|'(?P<sq>(?:[^'\\]|\\(?:[\s\S]|\Z))*)(?:'|\Z)"
+    r"|\x60(?P<bq>[^\x60]*)(?:\x60|\Z)"
+    r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
 )
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
@@ -160,6 +165,20 @@ def value_confidence(value: str, quoted: bool) -> float:
     return 0.9 if len(value) >= 4 else 0.5
 
 
+def url_password_candidates(text: str):
+    """Try a full password match at most once per non-whitespace token."""
+    if "@" not in text:
+        return
+    for token in re.finditer(r"\S+", text):
+        at = text.rfind("@", token.start(), token.end())
+        if at <= token.start():
+            continue
+        # The earliest possible prefix can reach every later host in the token.
+        prefix = URL_USERINFO_PREFIX.search(text, token.start(), at - 1)
+        if prefix and (match := URL_PASSWORD.match(text, prefix.start(), token.end())):
+            yield match
+
+
 def _private_keys(text: str):
     """PEM private key blocks, any size, in one pass. A BEGIN with no END redacts to the end of the text."""
     pos = 0
@@ -182,7 +201,12 @@ def find(text: str, key: str | None):
         if not any(literal in lower for literal in literals):
             continue
         group = "s" if "s" in pattern.groupindex else 0
-        for m in pattern.finditer(text):
+        matches = (
+            url_password_candidates(text)
+            if kind == "url-password"
+            else pattern.finditer(text)
+        )
+        for m in matches:
             if kind == "url-password" and re.match(r"\d+/", m.group("s")):
                 continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
@@ -191,7 +215,15 @@ def find(text: str, key: str | None):
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        conf = value_confidence(m.group(group), quoted=group != "bare")
+        quoted = group != "bare"
+        if m.start(group) == m.end(group):
+            continue
+        # An unclosed quote owns the remaining text, including any trailing escape.
+        conf = (
+            0.9
+            if quoted and m.end(group) == m.end()
+            else value_confidence(m.group(group), quoted=quoted)
+        )
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
     if secret_key(key):
