@@ -99,6 +99,8 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
+# host:8080/path?x=a@b: a port and a path, not user:password@host
+URL_PORT = re.compile(r"\d+/")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -123,9 +125,9 @@ SECRET_KEY = re.compile(
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>(?:[^\"\\]|\\(?:[\s\S]|\Z))*)(?:\"|\Z)"
-    r"|'(?P<sq>(?:[^'\\]|\\(?:[\s\S]|\Z))*)(?:'|\Z)"
-    r"|\x60(?P<bq>[^\x60]*)(?:\x60|\Z)"
+    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.?)*)(?:\"|(?=\n|\Z))"
+    r"|'(?P<sq>(?:[^'\\\n]|\\.?)*)(?:'|(?=\n|\Z))"
+    r"|\x60(?P<bq>[^\x60\n]*)(?:\x60|(?=\n|\Z))"
     r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
 )
 PLACEHOLDER = re.compile(
@@ -175,6 +177,8 @@ def url_password_candidates(text: str):
             continue
         # The earliest possible prefix can reach every later host in the token.
         prefix = URL_USERINFO_PREFIX.search(text, token.start(), at - 1)
+        while prefix and URL_PORT.match(text, prefix.end()):
+            prefix = URL_USERINFO_PREFIX.search(text, prefix.end(), at - 1)
         if prefix and (match := URL_PASSWORD.match(text, prefix.start(), token.end())):
             yield match
 
@@ -207,23 +211,13 @@ def find(text: str, key: str | None):
             else pattern.finditer(text)
         )
         for m in matches:
-            if kind == "url-password" and re.match(r"\d+/", m.group("s")):
-                continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        quoted = group != "bare"
-        if m.start(group) == m.end(group):
-            continue
-        # An unclosed quote owns the remaining text, including any trailing escape.
-        conf = (
-            0.9
-            if quoted and m.end(group) == m.end()
-            else value_confidence(m.group(group), quoted=quoted)
-        )
+        conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
     if secret_key(key):
