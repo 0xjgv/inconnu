@@ -36,6 +36,12 @@ def test_full_jwe_in_prose(alg, key):
     ]
 
 
+def test_large_jwe_is_redacted_whole():
+    header = encode(b'{"alg":"dir","enc":"A256GCM"}')
+    token = ".".join([header, "", "a" * 16, "b" * 40_000, "c" * 22])
+    assert redact("received " + token)[0] == "received [SECRET:jwe]"
+
+
 @pytest.mark.parametrize(
     "header",
     [

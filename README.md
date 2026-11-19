@@ -96,7 +96,7 @@ A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--
 | `[SSN]` | US Social Security numbers |
 | `[IP]` | IPv4 and IPv6 addresses, except loopback and unspecified addresses and IPv4 netmasks (255.x) |
 | `[PERSON]` | person names: first-name and surname gazetteers, titles (Mr., Dr.), name columns |
-| `[SECRET:<kind>]` | `aws-access-key`, `github-token`, `gitlab-token`, `anthropic-key`, `openai-key`, `slack-token`, `slack-webhook`, `discord-webhook`, `stripe-key`, `google-api-key`, `npm-token`, `pypi-token`, `sendgrid-key`, `jwt`, `private-key`, `password-hash`, `url-password`, `bearer`, `basic-auth`, and `generic` for values of secret-named keys (`password=`, `client_secret:`, `"apiKey": ...`) |
+| `[SECRET:<kind>]` | `aws-access-key`, `github-token`, `gitlab-token`, `anthropic-key`, `openai-key`, `slack-token`, `slack-webhook`, `discord-webhook`, `stripe-key`, `google-api-key`, `npm-token`, `pypi-token`, `sendgrid-key`, `jwt`, `jwe`, `private-key`, `password-hash`, `url-password`, `bearer`, `basic-auth`, and `generic` for values of secret-named keys (`password=`, `client_secret:`, `"apiKey": ...`) |
 | `[SECRET:entropy]` | unknown secrets: long tokens that look random for their charset |
 
 The entropy detector leaves alone UUIDs, git SHAs and other hex hashes (unless a secret-like key is next to them),

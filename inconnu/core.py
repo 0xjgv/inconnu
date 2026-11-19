@@ -15,20 +15,30 @@ MIN_LENGTH = 5  # shorter unkeyed cells cannot hold any detected type ("Dr Li" i
 def _spans(text: str, key: str | None) -> list[tuple]:
     if len(text) < MIN_LENGTH and not key:
         return []
-    candidates = [c for find in DETECTORS for c in find(text, key) if c[3] >= LOW]
+    candidates = sorted(
+        (c for find in DETECTORS for c in find(text, key) if c[3] >= LOW),
+        key=lambda c: c[0],
+    )
     kept: list[tuple] = []
-    for c in sorted(candidates, key=lambda c: (-c[3], c[0] - c[1], c[0])):
-        overlapping = [k for k in kept if c[0] < k[1] and k[0] < c[1]]
-        if not overlapping:
+    for c in candidates:
+        start, end, _, confidence, _ = c
+        if not kept or start >= kept[-1][1]:
             kept.append(c)
-        elif not all(k[0] <= c[0] and c[1] <= k[1] for k in overlapping):
-            # c sticks out of a more confident span: redact the union, so no part of either leaks.
-            group = [*overlapping, c]
-            longest = max(group, key=lambda s: s[1] - s[0])
-            start, end = min(s[0] for s in group), max(s[1] for s in group)
-            kept = [k for k in kept if k not in overlapping]
-            kept.append((start, end, longest[2], max(s[3] for s in group), longest[4]))
-    return sorted(kept)
+            representative = c
+            continue
+        # Cover the full connected span, with the longest finding as its label.
+        representative = max(
+            representative, c, key=lambda s: (s[1] - s[0], s[3], -s[0])
+        )
+        merged = kept[-1]
+        kept[-1] = (
+            merged[0],
+            max(merged[1], end),
+            representative[2],
+            max(merged[3], confidence),
+            representative[4],
+        )
+    return kept
 
 
 def _apply(text: str, spans: list[tuple]) -> str:
@@ -110,6 +120,7 @@ def redact_json(data, scorer: Scorer | None = None):
         if isinstance(node, dict):
             names = columns(node)
             out = {}
+            next_suffix = {}
             for k, v in node.items():
                 if k == "rows" and names:
                     value = [
@@ -125,10 +136,11 @@ def redact_json(data, scorer: Scorer | None = None):
                 else:
                     value = walk(v, k if isinstance(k, str) else key, visit)
                 name = base = visit(k, None) if isinstance(k, str) else k
-                n = 1
-                while name in out:
-                    n += 1
-                    name = f"{base} ({n})"
+                if name in out:
+                    n = next_suffix.get(base, 2)
+                    while (name := f"{base} ({n})") in out:
+                        n += 1
+                    next_suffix[base] = n + 1
                 out[name] = value
             return out
         if isinstance(node, list):
