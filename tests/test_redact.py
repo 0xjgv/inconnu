@@ -468,6 +468,43 @@ def test_second_bot_review_cases():
 
 
 @pytest.mark.parametrize(
+    ("text", "key", "expected"),
+    [
+        ("password=violet.green", None, "password=[SECRET:generic]"),
+        ("password = violet.green", None, "password = [SECRET:generic]"),
+        ("password=env.violet", None, "password=[SECRET:generic]"),
+        ("password=1947", None, "password=[SECRET:generic]"),
+        ("[foo]", "password", "[SECRET:generic]"),
+        ("[VIOLET]", "password", "[SECRET:generic]"),
+        ("1947", "token", "[SECRET:generic]"),
+        ("violet47", "authorization", "[SECRET:generic]"),
+        ("password = settings.SECRET_KEY", None, "password = settings.SECRET_KEY"),
+        (
+            "const password = req.body.password;",
+            None,
+            "const password = req.body.password;",
+        ),
+        ("password = getpass.getpass()", None, "password = getpass.getpass()"),
+        ("password=getpass.getpass()", None, "password=getpass.getpass()"),
+        (
+            'connect(password=os.environ["DB_PASSWORD"])',
+            None,
+            'connect(password=os.environ["DB_PASSWORD"])',
+        ),
+        ("const color = violet.green;", None, "const color = violet.green;"),
+        ("[foo]", "array", "[foo]"),
+        ("1947", "year", "1947"),
+        ("null", "password", "null"),
+        ("[REDACTED]", "password", "[REDACTED]"),
+        ("[redacted]", "password", "[redacted]"),
+        ("[EMAIL]", "password", "[EMAIL]"),
+    ],
+)
+def test_explicit_credential_context(text, key, expected):
+    assert redact(text, key=key)[0] == expected
+
+
+@pytest.mark.parametrize(
     ("text", "expected"),
     [
         ('password="violet47', 'password="[SECRET:generic]'),

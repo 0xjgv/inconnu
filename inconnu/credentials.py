@@ -120,7 +120,7 @@ KEYWORD = (
     r"|session[_-]?(?:id|key)|cookie|signature)"
 )
 SECRET_KEY = re.compile(
-    rf"(?:^|[^a-z0-9]){KEYWORD}$"
+    rf"(?:^|[^a-z0-9])(?:{KEYWORD}|authorization)$"
 )  # matched against a snake_cased, lowercased key
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
@@ -139,12 +139,18 @@ SESSION_COOKIE = re.compile(r"(?i)(?:sess(?:ion)?(?:[_-]?id)?|(?<![a-z0-9])sid)$
 COOKIE_PAIR = re.compile(
     rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
 )
+# [REDACTED] and the placeholders this redactor emits, so its own output stays as it is.
+BRACKET_PLACEHOLDER = re.compile(
+    r"(?i)\[(?:SECRET:[a-z-]+|REDACTED|EMAIL|PHONE|IP|SSN|CARD|IBAN|PERSON)\]"
+)
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
-    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
+    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
+# get_secret(), os.environ[...]: code with or without spaces around the operator
+CODE_CALL = re.compile(r"\w[(\[]")
 CODE_VALUE = re.compile(
-    r"\w\(|\w\[|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
+    r":$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\."
 )
 
 
@@ -155,19 +161,19 @@ def secret_key(key: str | None) -> bool:
     )
 
 
-def value_confidence(value: str, quoted: bool) -> float:
+def value_confidence(value: str, quoted: bool, code_assignment: bool = False) -> float:
     """How likely the value of a secret-named key is a real secret rather than code or a placeholder."""
     value = value.strip()
-    if PLACEHOLDER.match(value):
+    if PLACEHOLDER.match(value) or BRACKET_PLACEHOLDER.fullmatch(value):
         return 0.0
     if quoted:
         if len(value) < 4:
             return 0.5  # a short literal under a secret name (a PIN, "abc"): uncertain
         return 0.9 if len(value) >= 8 or not value.isalpha() else 0.7
-    if CODE_VALUE.search(value):
+    if CODE_CALL.search(value) or (code_assignment and CODE_VALUE.search(value)):
         return 0.0  # os.environ[...], get_secret(), settings.TOKEN
     if value.isdigit():
-        return 0.6 if len(value) >= 6 else 0.0
+        return 0.6 if len(value) >= 6 else 0.9
     if re.fullmatch(r"[A-Za-z_]+", value):
         if secret_key(value):
             return 0.0  # passwd = passwd + ...: the variable itself, not a literal
@@ -240,7 +246,14 @@ def find(text: str, key: str | None):
         if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
             continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        conf = value_confidence(m.group(group), quoted=group != "bare")
+        operator = text[m.end("key") : m.start(group)]
+        # Conventional source assignments can contain calls and known runtime references.
+        code_assignment = (
+            operator[0].isspace() and operator[-1].isspace() and operator.strip() == "="
+        )
+        conf = value_confidence(
+            m.group(group), quoted=group != "bare", code_assignment=code_assignment
+        )
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
     if secret_key(key):
