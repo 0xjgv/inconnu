@@ -40,6 +40,9 @@ OBJECT_PREFIXES = {
     "event": "evt_",
 }
 KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]{0,63})[\"']?\s*(?::=|=>|[:=])\s*[\"'\x60]?$")
+TOKEN_CELL = re.compile(
+    r"[A-Za-z0-9+/_-]{1,200}={0,2}(?:\.[A-Za-z0-9+/_-]{1,200}={0,2}){0,4}"
+)
 MAX_LEN = 200  # longer unlabeled tokens are encoded blobs, not credentials
 MIN_RANDOMNESS, MAX_WORDINESS, MIN_MIXING = 0.83, 0.45, 0.45
 
@@ -47,6 +50,24 @@ MIN_RANDOMNESS, MAX_WORDINESS, MIN_MIXING = 0.83, 0.45, 0.45
 def shannon(value: str) -> float:
     n = len(value)
     return -sum(c / n * math.log2(c / n) for c in Counter(value).values())
+
+
+def _random_segment(token: str, text: str, randomness: float, wordiness: float) -> bool:
+    """Relax the wordiness gate only for short segments in token-shaped cells."""
+    token = token.rstrip("=")
+    if (
+        not 22 <= len(token) <= 54
+        or randomness < 0.86
+        or wordiness > 0.70
+        or len(text) > 1024
+        or not TOKEN_CELL.fullmatch(text.strip())
+    ):
+        return False
+    kinds = [
+        "u" if c.isupper() else "l" if c.islower() else "d" if c.isdigit() else "s"
+        for c in token
+    ]
+    return sum(a != b for a, b in zip(kinds, kinds[1:])) >= 0.4 * (len(token) - 1)
 
 
 def features(token: str) -> tuple[float, float, float]:
@@ -97,10 +118,12 @@ def confidence(token: str, text: str, start: int, key: str | None) -> float:
     if not near and (HEX.fullmatch(token) or len(token) > MAX_LEN):
         return 0.0
     named = KEY_BEFORE.search(text, max(0, start - 70), start)
+    object_key = False
     for name in (key, named and named.group(1)):
         if not near and name:
             normalized = CAMEL.sub("_", name).lower().rsplit(".", 1)[-1]
             prefix = OBJECT_PREFIXES.get(normalized)
+            object_key |= prefix is not None
             if (
                 prefix
                 and token.startswith(prefix)
@@ -122,8 +145,17 @@ def confidence(token: str, text: str, start: int, key: str | None) -> float:
         randomness < MIN_RANDOMNESS
         or wordiness > (0.2 if letters_only else MAX_WORDINESS)
         or mixing < (0.5 if letters_only else MIN_MIXING)
-        or _encoded_text(token)
     ):
+        if (
+            not (near or named or object_key)
+            and mixing
+            >= 0.25  # separators alone are weak evidence, especially in build labels
+            and _random_segment(token, text, randomness, wordiness)
+            and not _encoded_text(token)
+        ):
+            return 0.6  # the relaxed path stays in the scorer's uncertain band
+        return 0.0
+    if _encoded_text(token):
         return 0.0
     score = 0.6 + 0.3 * min((randomness - MIN_RANDOMNESS) / 0.1, 1.0)
     return min(score + (0.25 if near else 0.0), 0.95)
