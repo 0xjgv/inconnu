@@ -141,10 +141,39 @@ def test_unknown_names_in_explicit_columns(key):
     assert redact("zuzanna niewiadomska", key=key)[0] == "[PERSON]"
 
 
-@pytest.mark.parametrize("key", ["companyName", "companies.name", "users.company_name"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "companyName",
+        "companies.name",
+        "users.company_name",
+        "org.name",
+        "tenant.name",
+        "vendor.name",
+        "employer.name",
+    ],
+)
 def test_company_context_does_not_suppress_secrets(key):
     assert redact("Morgan Stanley", key=key)[0] == "Morgan Stanley"
     assert redact("password=hungrybadger", key=key)[0] == "password=[SECRET:generic]"
+
+
+@pytest.mark.parametrize("key", ["organizations.contacts.name", "company.users.name"])
+def test_company_ancestor_above_people_keeps_person_detection(key):
+    assert redact("Maria Gonzalez", key=key)[0] == "[PERSON]"
+
+
+@pytest.mark.parametrize(
+    "key,value,redacted",
+    [
+        ("first_name", "Xochiquetzal", "[PERSON]"),
+        ("owner", "service", "service"),
+        ("assignee", "unassigned", "unassigned"),
+        ("author", "system", "system"),
+    ],
+)
+def test_single_words_are_names_only_in_name_part_columns(key, value, redacted):
+    assert redact(value, key=key)[0] == redacted
 
 
 def test_metabase_names_and_session_values():
@@ -202,6 +231,10 @@ def test_person_context_in_prose():
     assert (
         redact("Reviewed by Build System today.")[0]
         == "Reviewed by Build System today."
+    )
+    assert (
+        redact("Assigned to Security Lead yesterday.")[0]
+        == "Assigned to Security Lead yesterday."
     )
 
 
