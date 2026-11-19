@@ -206,6 +206,14 @@ def test_batch_matches_single_calls():
     assert redact_batch(cells) == [redact(c) for c in cells]
 
 
+def test_long_qualified_credential_column():
+    prefix = "metadata." + "x" * 55 + "."
+    assert redact("violet47", key=prefix + "password")[0] == "[SECRET:generic]"
+    assert redact("violet47", key=prefix + "clientSecret")[0] == "[SECRET:generic]"
+    for key in (prefix + "password_count", "metadata.password." + "x" * 70):
+        assert redact("violet47", key=key) == ("violet47", [])
+
+
 def test_redact_json_gives_row_cells_their_column_names():
     data = {
         "cols": [{"name": "password"}, {"name": "note"}],
