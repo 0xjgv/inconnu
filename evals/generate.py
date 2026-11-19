@@ -605,6 +605,91 @@ class Gen:
                 + "release_notes",
             )
 
+    def dev_unicode_names(self, n: int):
+        names = [
+            "张伟",
+            "佐藤 花子",
+            "Мария Иванова",
+            "محمد عبد الله",
+            "अनन्या शर्मा",
+            "ณัฐธิดา ศรีสวัสดิ์",
+            "Νικόλαος Παπαδόπουλος",
+        ]
+        for i in range(n):
+            name = names[i % len(names)]
+            self.add(
+                "pos:limits:unicode-name-column",
+                "{v}",
+                name,
+                "PERSON",
+                key=self.r.choice(["people.full_name", "reporterName", "assignee"]),
+            )
+            self.add(
+                "pos:limits:unicode-mention",
+                self.r.choice(
+                    [
+                        "Assigned to {v}.",
+                        "Reviewed by {v}.",
+                        "Contact: {v}, please review.",
+                    ]
+                ),
+                name,
+                "PERSON",
+            )
+            self.add(
+                "neg:limits:unicode-company",
+                self.r.choice(["株式会社", "सुरक्षा टीम", "Мария Иванова"]),
+                key=self.r.choice(["company_name", "organizations.name"]),
+            )
+            self.add(
+                "neg:limits:unicode-contextless",
+                self.r.choice(["安全审查", "नया संदेश", "Москва", "مرحبا بالعالم"]),
+            )
+            self.add(
+                "neg:limits:unicode-team-mention",
+                "Assigned to {v}.",
+                self.r.choice(["安全团队", "सुरक्षा टीम", "Служба Поддержки"]),
+            )
+        latin_teams = (
+            ("Assigned to {v} yesterday.", "Security Team"),
+            ("Reviewed by {v} today.", "Build System"),
+            ("Hi {v}, your scan finished.", "@platform-team"),
+            ("Reviewed by {v}.", "SRE Group"),
+            ("Contact: {v}.", "SRE"),
+            ("Assigned to {v}.", "sec/infra"),
+            ("Assigned to {v} yesterday.", "the delivery guild"),
+            ("Reviewed by {v}.", "Observability Squads"),
+            ("Contact: {v}.", "platform-team"),
+            ("Assigned to {v}.", "Equipo de seguridad"),
+        )
+        other_teams = (
+            ("Contact: {v}。", "平台團隊"),
+            ("Reviewed by {v}。", "運用チーム"),
+            ("Assigned to {v}.", "Команда платформы"),
+            ("Reviewed by {v}.", "فريق المراجعة"),
+            ("Assigned to {v}.", "अनुसंधान विभाग"),
+            ("Contact: {v}.", "보안 팀"),
+        )
+        surname_controls = (
+            ("Assigned to {v} yesterday.", "Maya Group"),
+            ("Reviewed by {v} today.", "Jordan Crew"),
+            ("Hi {v}, your scan finished.", "Nora Team"),
+            ("Contact: {v}.", "Juan Williams"),
+            ("Reviewed by {v} today.", "ALICE CREW"),
+            ("Reviewed by {v} today.", "JON Crew"),
+            ("Contact: {v}.", "Morgan-Crew"),
+            ("Assigned to {v}.", "Алина Группа"),
+            ("Reviewed by {v}.", "Ольга Команда"),
+            ("Reviewed by Dr. {v} today.", "Maya Crew"),
+        )
+        for i in range(n):
+            template, name = latin_teams[i % len(latin_teams)]
+            self.add("neg:limits:latin-team-mention", template, name)
+            template, name = other_teams[i % len(other_teams)]
+            self.add("neg:limits:additional-unicode-team-mention", template, name)
+            template, name = surname_controls[i % len(surname_controls)]
+            self.add("pos:limits:team-like-surname", template, name, "PERSON")
+
     def context_person(self, n: int):
         for i in range(n):
             name = self.faker().first_name() + " " + self.faker().last_name()
@@ -1241,6 +1326,10 @@ def main():
         extra = Gen(seed + 4000)
         extra.context_person(80)
         g.records.extend(extra.records)
+        if split == "dev":
+            extra = Gen(seed + 24000)
+            extra.dev_unicode_names(70)
+            g.records.extend(extra.records)
         if split == "test":
             heldout = Gen(seed + 14000)
             heldout.heldout_person(12)

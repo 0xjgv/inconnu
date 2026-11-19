@@ -25,9 +25,10 @@ ANY_CASE_WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)?")
 GAP = re.compile(
     rf"\s+(?:[{UPPER}]\.\s+|(?:(?:van|von|de|da|del|della|di|dos|das|du|le|la|ter|ten|der|den|bin|ibn|al)\s+){{1,2}})?"
 )
-TITLE = re.compile(
-    r"(?:\b(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof|Sir|Herr|Frau|Mme|Mlle|Sr|Sra|Dott|pan|pani)\.?\s+)$"
+TITLE_WORD = (
+    r"(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof|Sir|Herr|Frau|Mme|Mlle|Sr|Sra|Dott|pan|pani)"
 )
+TITLE = re.compile(rf"\b{TITLE_WORD}\.?\s+$")
 NAME_KEY = re.compile(
     r"(?i)^(?:(?:full|first|last|given|family|display|user|sur|contact|author|owner|assignee|reporter)_?)?name$"
     r"|^(?:author|assignee|reporter|owner|contact)$"
@@ -35,8 +36,43 @@ NAME_KEY = re.compile(
 COMPANY_KEY = re.compile(
     r"(?i)^(?:company|organi[sz]ation|org|tenant|vendor|employer)(?:_?name)?$"
 )
-HUMAN_CONTEXT = re.compile(
-    r"(?i)(?:\b(?:assigned to|reviewed by|triaged by|done by|owner:|reporter:|contact:|hi|dear|thanks|cc)|meeting notes:)\s+$"
+HUMAN_CUE = r"(?i)(?:\b(?:assigned to|reviewed by|triaged by|done by|owner:|reporter:|contact:|hi|dear|thanks|cc)|meeting notes:)"
+HUMAN_CONTEXT = re.compile(HUMAN_CUE + r"\s+$")
+MENTION = re.compile(
+    HUMAN_CUE
+    + rf"[^\S\r\n]+(?=(?P<title>{TITLE_WORD}\.[ \t]+)?"
+    + r"(?P<subject>[^,\r\n.!?;:，。！？；：]{1,100})(?:[,\r\n.!?;:，。！？；：]|$))"
+)
+NAME_JOINER = re.compile(r"['’\u200c\u200d-]")
+TEAM_COLUMN = re.compile(
+    r"(?:teams?|groups?|squads?)(?:_(?:name|display_name|slug|handle|type))?"
+)
+SLUG = re.compile(r"@?[^\W\d_][^\W_]*(?:[-_/][^\W_]+)*")
+SUBJECT_WORD = re.compile(r"\S+")
+# Common organization nouns used as grammatical heads or modifiers. Capitalized
+# English suffixes alone are ambiguous because they can be surnames.
+TEAM_NOUNS = frozenset(
+    "team squad group guild crew unit department org committee system "
+    "security support platform build "
+    "equipo équipe grupo equipe команда группа отдел служба فريق قسم टीम विभाग 팀".split()
+)
+JOINED_TEAM_NOUNS = ("团队", "團隊", "チーム")
+TEAM_HEADS = frozenset(
+    {
+        "equipo",
+        "équipe",
+        "equipe",
+        "grupo",
+        "команда",
+        "группа",
+        "служба",
+        "отдел",
+        "فريق",
+        "قسم",
+    }
+)
+PLURAL_TEAM_HEADS = frozenset(
+    {"team", "squad", "guild", "unit", "department", "committee"}
 )
 # Next words that make a first name part of a company, product or UI label (from the eval negatives).
 NOT_SURNAME = frozenset(
@@ -70,11 +106,130 @@ def _common(word: str) -> bool:
     return _fold(word) in wordlist("code_words.txt")
 
 
+def _unicode_name(value: str) -> bool:
+    """Check a name-shaped value with combining marks and optional joiners."""
+    words = value.split()
+    if not 1 <= len(words) <= 5:
+        return False
+    return all(
+        part
+        and part[0].isalpha()
+        and all(c.isalpha() or unicodedata.category(c).startswith("M") for c in part)
+        for word in words
+        for part in NAME_JOINER.split(word)
+    )
+
+
+def _acronym(word: str) -> bool:
+    # An internal vowel makes an all-caps spelling such as JON plausible as a name.
+    return (
+        3 <= len(word) <= 5
+        and word.isascii()
+        and word.isalpha()
+        and word.isupper()
+        and all(c not in "AEIOU" for c in word[:-1])
+    )
+
+
+def _team_subject(value: str) -> bool:
+    """Keep a subject only when it carries evidence of an organizational role."""
+    if value.islower() and SLUG.fullmatch(value):
+        parts = re.split(r"[-_/]", value.removeprefix("@"))
+        if "/" in value or (
+            len(parts) > 1
+            and (
+                (value.startswith("@") and parts[-1] == "team")
+                or (parts[0] in TEAM_NOUNS and parts[-1] in TEAM_NOUNS)
+            )
+        ):
+            return True
+    words = value.split()
+    if len(words) == 1:
+        return (
+            _acronym(words[0])
+            or value in PLURAL_TEAM_HEADS
+            or value.endswith(JOINED_TEAM_NOUNS)
+            and _unicode_name(value)
+        )
+    first, last = words[0], words[-1]
+    first_fold, last_fold = first.casefold(), last.casefold()
+    if first_fold in TEAM_HEADS and _unicode_name(value):
+        return True
+    tail = last_fold.removesuffix("s")
+    if tail != last_fold and tail in PLURAL_TEAM_HEADS:
+        return True
+    return (last_fold in TEAM_NOUNS or tail in TEAM_NOUNS) and (
+        first_fold == "the"
+        or first_fold in TEAM_NOUNS
+        or _acronym(first)
+        or not any(c.isupper() or c.islower() for c in last)
+    )
+
+
+def _mentions(text: str):
+    """Yield contextual subject offsets and whether the subject is a team."""
+    if len(text.split(maxsplit=1)) < 2:
+        return
+    for m in MENTION.finditer(text):
+        raw = m["subject"].rstrip()
+        words = list(SUBJECT_WORD.finditer(raw))
+        if not words:
+            continue
+        # Cased names often end before a lowercase prose continuation. Preserve
+        # name particles that the ordinary name matcher already understands.
+        first = words[0].group()
+        title = m["title"]
+        cased_start = first[0].isupper()
+        org_head = not title and first.casefold() in TEAM_HEADS
+        end = words[0].end()
+        for i, word in enumerate(words[1:5], 1):
+            current = word.group()
+            if (
+                current.islower()
+                and current.casefold() not in TEAM_NOUNS
+                and not org_head
+            ):
+                if cased_start and not (
+                    i + 1 < len(words)
+                    and GAP.fullmatch(raw, words[i - 1].end(), words[i + 1].start())
+                ):
+                    break
+                if not (cased_start or title) and _team_subject(raw[:end]):
+                    break
+            end = word.end()
+        # Longer uncased clauses have no reliable subject boundary.
+        if len(words) > 5 and end == words[4].end() and not cased_start:
+            continue
+        subject = raw[:end]
+        team = not title and _team_subject(subject)
+        if team or _unicode_name(subject) or SLUG.fullmatch(subject):
+            yield (
+                m.start("title") if title else m.start("subject"),
+                m.start("subject") + end,
+                team,
+            )
+
+
+def _words_outside_teams(text: str, teams: list[tuple[int, int]]):
+    end = 0
+    for start, stop in teams:
+        yield from WORD.finditer(text, end, start)
+        end = stop
+    yield from WORD.finditer(text, end)
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     if key:
         parts = CAMEL.sub("_", key).lower().split(".")
         key = parts[-1]
+        if TEAM_COLUMN.fullmatch(key) or (
+            key in {"name", "slug", "handle", "display_name"}
+            and any(TEAM_COLUMN.fullmatch(p) for p in parts[:-1])
+        ):
+            return
+        if key == "assignee_type" and text.strip().casefold() in TEAM_NOUNS:
+            return
         if key == "name" and any(
             p
             in {
@@ -98,7 +253,13 @@ def find(text: str, key: str | None):
         named = (
             key.lower() != "name"
         )  # a bare "name" column also holds projects, rules and companies
-        if (
+        unicode_name = (
+            named
+            and not stripped.isascii()
+            and _unicode_name(stripped)
+            and not any(w.capitalize() in NOT_SURNAME for w in stripped.split())
+        )
+        if unicode_name or (
             1 <= len(words) <= 5
             and len(" ".join(words)) >= len(stripped) - 8
             and not any(
@@ -113,7 +274,13 @@ def find(text: str, key: str | None):
             start = text.index(stripped)
             yield start, start + len(stripped), "PERSON", 0.9, "names"
             return
-    words = list(WORD.finditer(text))
+    teams = []
+    for start, end, team in _mentions(text):
+        if team:
+            teams.append((start, end))
+        else:
+            yield start, end, "PERSON", 0.85, "names"
+    words = list(_words_outside_teams(text, teams) if teams else WORD.finditer(text))
     i = 0
     while i < len(words):
         word = words[i]
