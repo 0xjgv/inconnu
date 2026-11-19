@@ -174,10 +174,14 @@ def _private_keys(text: str):
 
 
 def url_password_matches(text: str):
-    for match in URL_PASSWORD.finditer(text):
+    pos = 0
+    while match := URL_PASSWORD.search(text, pos):
         # A numeric port followed by a path, query or fragment is outside userinfo.
-        if not URL_PORT.match(text, match.start("s"), match.end("s")):
-            yield match
+        if URL_PORT.match(text, match.start("s"), match.end("s")):
+            pos = match.start("s")  # the query may hold a URL with its own credentials
+            continue
+        yield match
+        pos = match.end()
 
 
 def find(text: str, key: str | None):

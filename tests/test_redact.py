@@ -262,6 +262,10 @@ def test_email_after_url_port_is_redacted(separator):
     url = "https://user:8080" + separator
     assert redact(url + "joe@example.invalid")[0] == url + "[EMAIL]"
     assert redact(url + "docs") == (url + "docs", [])
+    nested = "postgres:" + "//app:{}@db/prod"
+    assert redact(url + nested.format("violet47"))[0] == url + nested.format(
+        "[SECRET:url-password]"
+    )
 
 
 def test_url_password_owns_email_shaped_userinfo():
