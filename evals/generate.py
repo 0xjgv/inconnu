@@ -633,9 +633,7 @@ class Gen:
                 "neg:context:identifier",
                 "{v}",
                 token,
-                key=self.r.choice(
-                    ["requestId", "objectId", "payment_intent", "traceId"]
-                ),
+                key=self.r.choice(["requestId", "objectId", "orderId", "traceId"]),
             )
             self.add("pos:context:identifier-secret", "{v}", token, "SECRET", "entropy")
             self.add(
@@ -660,7 +658,7 @@ class Gen:
                 "{v}",
                 self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
                 "SECRET",
-                "entropy",
+                "stripe-key",
                 key=object_key,
             )
 
@@ -774,7 +772,7 @@ class Gen:
                 "{v}",
                 self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
                 "SECRET",
-                "entropy",
+                "stripe-key",
                 key=key,
             )
             self.add(
