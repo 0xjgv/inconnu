@@ -163,7 +163,7 @@ def _team_subject(value: str) -> bool:
         )
     first, last = words[0], words[-1]
     first_fold, last_fold = first.casefold(), last.casefold()
-    if first_fold in TEAM_HEADS and _unicode_name(value):
+    if (first_fold in TEAM_HEADS or first_fold in TEAM_NOUNS) and _unicode_name(value):
         return True
     tail = last_fold.removesuffix("s")
     if tail != last_fold and tail in PLURAL_TEAM_HEADS:
@@ -174,6 +174,20 @@ def _team_subject(value: str) -> bool:
         or _acronym(first)
         or not any(c.isupper() or c.islower() for c in last)
     )
+
+
+def _person_subject(subject: str, title: str | None) -> bool:
+    """Whether a non-team subject after a cue is a name, not prose such as "for your help"."""
+    if not (_unicode_name(subject) or SLUG.fullmatch(subject)):
+        return False
+    if title or not subject.isascii() or subject.startswith("@"):
+        return True
+    words = subject.split()
+    first, last = words[0], words[-1]
+    if _common(first) and not (_known(last, "surnames.txt") and not _common(last)):
+        return False
+    # ASCII needs a cased multi-word name or a known first name.
+    return (first[0].isupper() and len(words) > 1) or _known(first, "first_names.txt")
 
 
 def _mentions(text: str):
@@ -210,7 +224,7 @@ def _mentions(text: str):
             continue
         subject = raw[:end]
         team = not title and _team_subject(subject)
-        if team or _unicode_name(subject) or SLUG.fullmatch(subject):
+        if team or _person_subject(subject, title):
             yield (
                 m.start("title") if title else m.start("subject"),
                 m.start("subject") + end,
@@ -236,7 +250,8 @@ def find(text: str, key: str | None):
         key = parts[-1]
         if TEAM_COLUMN.fullmatch(key) or (
             key in {"name", "slug", "handle", "display_name"}
-            and any(TEAM_COLUMN.fullmatch(p) for p in parts[:-1])
+            and len(parts) > 1
+            and TEAM_COLUMN.fullmatch(parts[-2])
         ):
             return
         if key == "assignee_type" and text.strip().casefold() in TEAM_NOUNS:

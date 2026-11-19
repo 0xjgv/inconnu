@@ -41,6 +41,8 @@ def test_fullwidth_name_delimiter_stays_in_output():
         "Assigned to Команда платформы.",
         "Contact: فريق المراجعة.",
         "Assigned to Equipo de seguridad.",
+        "Assigned to Team Alpha.",
+        "Reviewed by Squad Seven.",
     ],
 )
 def test_team_mentions_stay_visible(text):
@@ -91,6 +93,31 @@ def test_cue_whitespace_and_case_keep_person_spans(cue):
 def test_team_column_allows_ambiguous_label_without_affecting_secrets(key):
     assert redact("Morgan Stanley", key=key) == ("Morgan Stanley", [])
     assert redact("sk_live_demo", key=key)[0] == "[SECRET:stripe-key]"
+
+
+@pytest.mark.parametrize(
+    "key", ["teams.members.name", "teams.owner.name", "groups.users.display_name"]
+)
+def test_person_nested_under_team_column_is_redacted(key):
+    assert redact("John Smith", key=key)[0] == "[PERSON]"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Thanks for your help.",
+        "Hi there, how are you?",
+        "Hi There, how are you?",
+        "Contact: please review.",
+        "Hi all, quick update.",
+        "Thanks so much!",
+        "Dear customer, your order shipped.",
+        "Assigned to nobody yet.",
+        "Done by the script.",
+    ],
+)
+def test_ordinary_prose_after_a_cue_stays_visible(text):
+    assert redact(text) == (text, [])
 
 
 def test_untrusted_prefixless_payment_intent_has_no_new_exemption():
