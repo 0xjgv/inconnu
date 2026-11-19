@@ -33,6 +33,12 @@ NEAR_SECRET = re.compile(
 ID_KEY = re.compile(
     r"(?i)(?:^|[^a-z])(?:id|ids|uuid|guid|hash|digest|checksum|etag|fingerprint|sha\d*|version|trace|span)$"
 )
+OBJECT_PREFIXES = {
+    "payment_intent": "pi_",
+    "customer": "cus_",
+    "request": "req_",
+    "event": "evt_",
+}
 KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]{0,63})[\"']?\s*(?::=|=>|[:=])\s*[\"'\x60]?$")
 MAX_LEN = 200  # longer unlabeled tokens are encoded blobs, not credentials
 MIN_RANDOMNESS, MAX_WORDINESS, MIN_MIXING = 0.83, 0.45, 0.45
@@ -91,6 +97,16 @@ def confidence(token: str, text: str, start: int, key: str | None) -> float:
     if not near and (HEX.fullmatch(token) or len(token) > MAX_LEN):
         return 0.0
     named = KEY_BEFORE.search(text, max(0, start - 70), start)
+    for name in (key, named and named.group(1)):
+        if not near and name:
+            normalized = CAMEL.sub("_", name).lower().rsplit(".", 1)[-1]
+            prefix = OBJECT_PREFIXES.get(normalized)
+            if (
+                prefix
+                and token.startswith(prefix)
+                and re.fullmatch(r"[A-Za-z0-9]{12,}", token[len(prefix) :])
+            ):
+                return 0.0
     if not near and any(
         k and ID_KEY.search(CAMEL.sub("_", k)) for k in (key, named and named.group(1))
     ):

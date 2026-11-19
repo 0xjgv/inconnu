@@ -599,6 +599,42 @@ class Gen:
                 ),
             )
 
+    def context_ids(self, n: int):
+        for i in range(n):
+            token = self.s(B62, 32)
+            self.add(
+                "neg:context:identifier",
+                "{v}",
+                token,
+                key=self.r.choice(["requestId", "objectId", "orderId", "traceId"]),
+            )
+            self.add("pos:context:identifier-secret", "{v}", token, "SECRET", "entropy")
+            self.add(
+                "pos:context:secret-over-id",
+                "token={v}",
+                token,
+                "SECRET",
+                "generic",
+                key="requestId",
+            )
+            object_key, prefix = self.r.choice(
+                [
+                    ("payment_intent", "pi_"),
+                    ("customer", "cus_"),
+                    ("request", "req_"),
+                    ("event", "evt_"),
+                ]
+            )
+            self.add("neg:context:object-id", "{v}", prefix + token, key=object_key)
+            self.add(
+                "pos:context:object-secret",
+                "{v}",
+                self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
+                "SECRET",
+                "stripe-key",
+                key=object_key,
+            )
+
     def heldout_urls(self, n: int):
         for i in range(n):
             self.add(
@@ -690,6 +726,45 @@ class Gen:
             self.add(
                 "neg:holdout:person-prose",
                 "The alert was triaged by Security Team today.",
+            )
+
+    def heldout_ids(self, n: int):
+        for i in range(n):
+            key, prefix = self.r.choice(
+                [
+                    ("billing.paymentIntent", "pi_"),
+                    ("accounts.customer", "cus_"),
+                    ("logs.request", "req_"),
+                    ("hooks.event", "evt_"),
+                ]
+            )
+            token = self.s(B62, 32)
+            self.add("neg:holdout:object-id", "{v}", prefix + token, key=key)
+            self.add(
+                "pos:holdout:object-secret",
+                "{v}",
+                self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
+                "SECRET",
+                "stripe-key",
+                key=key,
+            )
+            self.add(
+                "neg:holdout:identifier", "job ref: {v}", token, key="jobs.traceId"
+            )
+            self.add(
+                "pos:holdout:identifier-secret",
+                "output was ({v})",
+                token,
+                "SECRET",
+                "entropy",
+            )
+            self.add(
+                "pos:holdout:secret-over-id",
+                'secret = "{v}"',
+                token,
+                "SECRET",
+                "generic",
+                key="jobs.traceId",
             )
 
     def identifier(self) -> str:
@@ -1085,6 +1160,13 @@ def main():
         if split == "test":
             heldout = Gen(seed + 14000)
             heldout.heldout_person(12)
+            g.records.extend(heldout.records)
+        extra = Gen(seed + 5000)
+        extra.context_ids(80)
+        g.records.extend(extra.records)
+        if split == "test":
+            heldout = Gen(seed + 15000)
+            heldout.heldout_ids(12)
             g.records.extend(heldout.records)
         g.write(ROOT / "data" / f"{split}.jsonl")
         print(f"{split}: {len(g.records)} records")

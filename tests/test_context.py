@@ -229,6 +229,14 @@ def test_metabase_names_and_session_values():
     assert out["rows"] == [["[PERSON]", "[SECRET:generic]", "Morgan Stanley"]]
 
 
+def test_id_context_preserves_explicit_and_unkeyed_secrets():
+    token = "q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf"
+    assert redact("pi_" + token, key="payment_intent")[0] == "pi_" + token
+    assert redact(token, key="payment_intent")[0] == "[SECRET:entropy]"
+    assert redact(token)[0] == "[SECRET:entropy]"
+    assert redact("token=" + token, key="payment_intent")[0] == "token=[SECRET:entropy]"
+
+
 def test_full_span_metric_catches_partial_leak():
     from evals.run import score
 
@@ -256,6 +264,33 @@ def test_credential_candidates_remain_bounded():
     started = time.perf_counter()
     redact("a=1\n" + "\n" * 32000, key="Cookie")  # every blank line is a pair anchor
     assert time.perf_counter() - started < 0.5
+
+
+@pytest.mark.parametrize(
+    "key,prefix",
+    [
+        ("paymentIntent", "pi_"),
+        ("customer", "cus_"),
+        ("request", "req_"),
+        ("event", "evt_"),
+    ],
+)
+def test_object_context_requires_matching_id_shape(key, prefix):
+    value = "q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf"
+    assert redact(prefix + value, key="table." + key)[0] == prefix + value
+    assert redact(value, key=key)[0] == "[SECRET:entropy]"
+    other = "cus_" if prefix == "pi_" else "pi_"
+    assert redact(other + value, key="table." + key)[0] == "[SECRET:entropy]"
+    for secret_prefix in ["sk_live_", "rk_live_", "whsec_"]:
+        result, findings = redact(secret_prefix + value, key="table." + key)
+        assert value not in result
+        assert any(f["type"].startswith("SECRET:") for f in findings)
+
+
+@pytest.mark.parametrize("prefix", ["sk_live_", "rk_live_", "whsec_"])
+def test_provider_prefix_overrides_id_and_randomness(prefix):
+    for suffix in ("x9", "a" * 32):
+        assert redact(prefix + suffix, key="table.request")[0] == "[SECRET:stripe-key]"
 
 
 def test_cookie_fails_closed_on_unterminated_quote_and_secret_column():
