@@ -10,6 +10,7 @@ import base64
 import binascii
 import json
 import re
+from urllib.parse import unquote
 
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
@@ -81,7 +82,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
+        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{0,64}:(?P<s>\S{1,4096})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
         0.97,
         ("://",),
     ),
@@ -100,6 +101,8 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
+URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s\"'<>]+")
+QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -199,9 +202,26 @@ def _jwt(value: str) -> bool:
     )
 
 
+def _query_secrets(text: str):
+    for url in URL.finditer(text) if "://" in text and "?" in text else ():
+        query = url.group().find("?")
+        if query < 0:
+            continue
+        start = url.start() + query + 1
+        end = text.find("#", start, url.end())
+        for m in QUERY_VALUE.finditer(text[start : end if end >= 0 else url.end()]):
+            name = unquote(m.group("key"))
+            if name.lower() in {"key", "sig"} or secret_key(name):
+                if value_confidence(unquote(m.group("s")), quoted=True):
+                    yield start + m.start("s"), start + m.end("s")
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    query_secrets = list(_query_secrets(text))
+    for start, end in query_secrets:
+        yield start, end, "SECRET:url-query", 0.97, "rule"
     if "private key" in lower:
         for start, end in _private_keys(text):
             yield start, end, "SECRET:private-key", 0.99, "rule"
@@ -220,6 +240,8 @@ def find(text: str, key: str | None):
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
+        if any(start <= m.start(group) < end for start, end in query_secrets):
+            continue  # URL parameters end at &, even when a generic bare value would continue.
         conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
