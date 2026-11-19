@@ -77,3 +77,29 @@ def test_version_command_prints_the_package_version():
     result = run(["version"], "")
     assert result.returncode == 0
     assert result.stdout == f"{__version__}\n"
+
+
+def test_update_does_not_pass_stdin_to_installer(tmp_path):
+    installer = tmp_path / "install.sh"
+    installer.write_text(
+        'if IFS= read -r line; then printf "%s\\n" "$line"; fi\n'
+        'printf "%s\\n" "$INCONNU_VERSION"\n'
+        'printf "installer stderr\\n" >&2\n'
+        "exit 7\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from inconnu import cli; cli.__file__ = sys.argv[1]; "
+            "raise SystemExit(cli.main(['update', '0.2.0']))",
+            str(tmp_path / "cli.py"),
+        ],
+        input="synthetic stdin canary\n",
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == 7
+    assert result.stdout == "v0.2.0\n"
+    assert result.stderr == "installer stderr\n"
