@@ -99,8 +99,8 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
-# host:8080/path?x=a@b: a port and a path, not user:password@host
-URL_PORT = re.compile(r"\d+/")
+# host:8080/path?x=a@b (or ?, #): a port then a path, query or fragment, not user:password@host
+URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
