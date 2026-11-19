@@ -38,6 +38,7 @@ EVALUATOR = (
     "evals/run.py",
     "evals/scoreboard.py",
     "evals/fixtures",
+    "uv.lock",  # the generator reads it into the corpus
 )
 BOARD = ROOT / "evals/SCOREBOARD.md"
 GIT = shutil.which("git") or "git"
