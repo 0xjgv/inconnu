@@ -151,6 +151,10 @@ Scorer, live on 120 of 246 distinct dev-band descriptions (every one with a fals
 
 Latency on Python 3.14.10 (arm64): p50 12.8 µs and p99 90.3 µs per cell under 200 characters; p50 410.1 µs and p99 1110.3 µs per KB; a 10k-cell batch (95% clean cells) in 0.137 s (73165 cells/s). Adversarial 10-16 KB cells stay under 0.5 s (tests). inconnu 0.1.1 took 0.79 ms per record on the same data. The real-code negatives come from the running interpreter's standard library, so results carry the data hash and Python version they were made with.
 
+## Scoreboard
+
+Run `make score` to measure the working detector on dev. Minimize weighted leak and false-redaction cost while passing all four gates. Every detector PR appends a row with `make scoreboard LABEL="description"`. Explain declines in guarded metrics with `REASON="explanation"`. Use `make scoreboard-holdout` to sanity-check a fresh seed, and reserve the test split for releases. The [scoreboard](evals/SCOREBOARD.md) records the corpus, costs, gate definitions and historical rows.
+
 ## Migrating from 0.1
 
 0.2.0 is a rewrite. `Inconnu`, `Config`, pseudonymization and `restore()`, the spaCy pipeline, custom NER components,

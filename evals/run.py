@@ -135,6 +135,7 @@ def score(records, predictions, types=None) -> dict:
     return {
         "recall": {k: ratio(gold_hit[k], gold_n[k]) for k in sorted(gold_n)},
         "covered": {k: ratio(gold_cov[k], gold_n[k]) for k in sorted(gold_n)},
+        "fully_covered_counts": {k: gold_full[k] for k in sorted(gold_n)},
         "fully_covered": {k: ratio(gold_full[k], gold_n[k]) for k in sorted(gold_n)},
         "gold": dict(sorted(gold_n.items())),
         "precision": {k: ratio(pred_hit[k], pred_n[k]) for k in sorted(pred_n)},
