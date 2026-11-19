@@ -123,6 +123,13 @@ KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
     r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
 )
+COOKIE_NAME = r"[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+"
+COOKIE_HEADER = re.compile(
+    rf"(?i)(?<![\w-])cookie:[ \t]*(?={COOKIE_NAME}[ \t]*=)(?P<pairs>[^\r\n]*)"
+)
+COOKIE_PAIR = re.compile(
+    rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
+)
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
     r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
@@ -172,6 +179,16 @@ def _private_keys(text: str):
         pos = end.end()
 
 
+def _cookie_values(text: str):
+    for header in COOKIE_HEADER.finditer(text):
+        for pair in COOKIE_PAIR.finditer(header["pairs"]):
+            if pair["name"].lower() == "session" or secret_key(pair["name"]):
+                value = pair["value"].rstrip(" \t")
+                if value:
+                    start = header.start("pairs") + pair.start("value")
+                    yield start, start + len(value)
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
@@ -187,9 +204,14 @@ def find(text: str, key: str | None):
                 continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
+    if "cookie:" in lower:
+        for start, end in _cookie_values(text):
+            yield start, end, "SECRET:generic", 0.95, "keyword"
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
+        if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
+            continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
         conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:
