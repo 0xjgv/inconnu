@@ -12,6 +12,8 @@ import json
 import re
 from urllib.parse import unquote
 
+URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{0,64}:")
+
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
 RULES = [
@@ -23,7 +25,7 @@ RULES = [
     ),
     (
         "github-token",
-        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{82})\b",
+        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}(?![0-9A-Za-z])|github_pat_[0-9A-Za-z_]{82}\b)",
         0.99,
         ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"),
     ),
@@ -70,7 +72,9 @@ RULES = [
     ("sendgrid-key", r"\bSG\.[\w-]{22}\.[\w-]{43}\b", 0.99, ("SG.",)),
     (
         "jwt",
-        r"(?<![\w.-])[A-Za-z0-9_-]{2,4096}\.[A-Za-z0-9_-]{2,16384}\.[A-Za-z0-9_-]{0,2048}(?![\w-])",
+        # The header is a JSON object: base64url of "{" plus a quote or whitespace is ey or ew. Starting only
+        # there, or after a dot, keeps the scan linear with unbounded segments.
+        r"(?<![\w-])e[wy][A-Za-z0-9_-]+\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*(?![\w-])",
         0.95,
         (".",),
     ),
@@ -82,7 +86,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{0,64}:(?P<s>\S{1,4096})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
+        rf"{URL_USERINFO_PREFIX.pattern}(?P<s>\S+)@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
         0.97,
         ("://",),
     ),
@@ -101,13 +105,16 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
-URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s\"'<>]+")
+# Backticks and trailing ,;)}] belong to the surrounding prose or code, as for bare key=value values.
+URL = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://(?:[^\s\"'<>\x60,;)}\]]|[,;)}\]](?=[^\s\"'<>\x60,;)}\]]))+"
+)
 QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
 COOKIE_HEADER = re.compile(
     r"(?im)(?<![\w-])(?P<set>set-)?cookie[ \t]*:[ \t]*(?P<s>[^\r\n]*)"
 )
 COOKIE_PAIR = re.compile(
-    r'(?m)(?:^|;)[^\S\n]*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
+    r'(?m)(?:^|;)[^\S\n]*(?P<key>[^\s=;]+)[^\S\r\n]*=[^\S\r\n]*(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
     r'|"(?P<unclosed>[^\r\n]*)|(?P<bare>[^;\r\n]*))'
 )
 SESSION_KEY = re.compile(
@@ -117,6 +124,8 @@ COOKIE_PREFERENCES = frozenset({"theme", "locale", "language", "color_scheme"})
 COOKIE_ATTRIBUTES = frozenset(
     {"path", "domain", "expires", "max-age", "samesite", "priority"}
 )
+# host:8080/path?x=a@b (or ?, #): a port then a path, query or fragment, not user:password@host
+URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
     "pass",
     "pwd",
@@ -136,50 +145,72 @@ KEYWORD = (
     r"|session(?:[_-]?(?:id|key))?|cookie|signature)"
 )
 SECRET_KEY = re.compile(
-    rf"(?:^|[^a-z0-9]){KEYWORD}$"
+    rf"(?:^|[^a-z0-9])(?:{KEYWORD}|authorization)$"
 )  # matched against a snake_cased, lowercased key
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
+    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.?)*)(?:\"|(?=\n|\Z))"
+    r"|'(?P<sq>(?:[^'\\\n]|\\.?)*)(?:'|(?=\n|\Z))"
+    r"|\x60(?P<bq>[^\x60\n]*)(?:\x60|(?=\n|\Z))"
+    r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
+)
+# [REDACTED] and the placeholders this redactor emits, so its own output stays as it is.
+BRACKET_PLACEHOLDER = re.compile(
+    r"(?i)\[(?:SECRET:[a-z-]+|REDACTED|EMAIL|PHONE|IP|SSN|CARD|IBAN|PERSON)\]"
 )
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
-    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
+    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
+# get_secret(), os.environ[...]: code with or without spaces around the operator
+CODE_CALL = re.compile(r"\w[(\[]")
 CODE_VALUE = re.compile(
-    r"\w\(|\w\[|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
+    r":$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\."
 )
 
 
 def secret_key(key: str | None) -> bool:
-    return (
-        bool(key)
-        and len(key) <= 64
-        and bool(
-            SECRET_KEY.search(CAMEL.sub("_", key).lower()) or SESSION_KEY.search(key)
-        )
+    component = key.rsplit(".", 1)[-1] if key else ""
+    return 0 < len(component) <= 64 and bool(
+        SECRET_KEY.search(CAMEL.sub("_", component).lower()) or SESSION_KEY.search(key)
     )
 
 
-def value_confidence(value: str, quoted: bool) -> float:
+def value_confidence(value: str, quoted: bool, code_assignment: bool = False) -> float:
     """How likely the value of a secret-named key is a real secret rather than code or a placeholder."""
     value = value.strip()
-    if PLACEHOLDER.match(value):
+    if PLACEHOLDER.match(value) or BRACKET_PLACEHOLDER.fullmatch(value):
         return 0.0
     if quoted:
         if len(value) < 4:
             return 0.5  # a short literal under a secret name (a PIN, "abc"): uncertain
         return 0.9 if len(value) >= 8 or not value.isalpha() else 0.7
-    if CODE_VALUE.search(value):
+    if CODE_CALL.search(value) or (code_assignment and CODE_VALUE.search(value)):
         return 0.0  # os.environ[...], get_secret(), settings.TOKEN
     if value.isdigit():
-        return 0.6 if len(value) >= 6 else 0.0
+        return 0.6 if len(value) >= 6 else 0.9
     if re.fullmatch(r"[A-Za-z_]+", value):
         if secret_key(value):
             return 0.0  # passwd = passwd + ...: the variable itself, not a literal
         return 0.5  # a bare word (PASSWORD=hunter, id-token: write, password=access): uncertain, redacted unless a Scorer clears it
     return 0.9 if len(value) >= 4 else 0.5
+
+
+def url_password_candidates(text: str):
+    """Try a full password match at most once per non-whitespace token."""
+    if "@" not in text:
+        return
+    for token in re.finditer(r"\S+", text):
+        at = text.rfind("@", token.start(), token.end())
+        if at <= token.start():
+            continue
+        # The earliest possible prefix can reach every later host in the token.
+        prefix = URL_USERINFO_PREFIX.search(text, token.start(), at - 1)
+        while prefix and URL_PORT.match(text, prefix.end()):
+            prefix = URL_USERINFO_PREFIX.search(text, prefix.end(), at - 1)
+        if prefix and (match := URL_PASSWORD.match(text, prefix.start(), token.end())):
+            yield match
 
 
 def _private_keys(text: str):
@@ -219,6 +250,7 @@ def _jwt(value: str) -> bool:
 
 
 def _query_secrets(text: str):
+    """(start, end, confidence) of each secret-named parameter value; confidence is 0 for a placeholder."""
     for url in URL.finditer(text) if "://" in text and "?" in text else ():
         query = url.group().find("?")
         if query < 0:
@@ -228,8 +260,8 @@ def _query_secrets(text: str):
         for m in QUERY_VALUE.finditer(text[start : end if end >= 0 else url.end()]):
             name = unquote(m.group("key"))
             if name.lower() in {"key", "sig"} or secret_key(name):
-                if value_confidence(unquote(m.group("s")), quoted=True):
-                    yield start + m.start("s"), start + m.end("s")
+                conf = value_confidence(unquote(m.group("s")), quoted=True)
+                yield start + m.start("s"), start + m.end("s"), conf
 
 
 def _cookie_ranges(text: str, key: str | None):
@@ -259,11 +291,14 @@ def find(text: str, key: str | None):
             ):
                 continue
             a, b = m.span(m.lastgroup)
+            if m.lastgroup == "bare":
+                b = a + len(m.group("bare").rstrip())
             if a < b and value_confidence(text[start + a : start + b], quoted=True):
                 yield start + a, start + b, "SECRET:cookie", 0.97, "rule"
     query_secrets = list(_query_secrets(text))
-    for start, end in query_secrets:
-        yield start, end, "SECRET:url-query", 0.97, "rule"
+    for start, end, conf in query_secrets:
+        if conf:
+            yield start, end, "SECRET:url-query", 0.97, "rule"
     if "private key" in lower:
         for start, end in _private_keys(text):
             yield start, end, "SECRET:private-key", 0.99, "rule"
@@ -271,11 +306,14 @@ def find(text: str, key: str | None):
         if not any(literal in lower for literal in literals):
             continue
         group = "s" if "s" in pattern.groupindex else 0
-        for m in pattern.finditer(text):
+        matches = (
+            url_password_candidates(text)
+            if kind == "url-password"
+            else pattern.finditer(text)
+        )
+        for m in matches:
             if kind == "jwt" and not _jwt(m.group()):
                 continue
-            if kind == "url-password" and re.match(r"\d+/", m.group("s")):
-                continue  # host:8080/path?x=a@b: a port and a path, not user:password@host
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
     for m in (
@@ -284,9 +322,16 @@ def find(text: str, key: str | None):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
         if any(start <= m.start(group) < end for start, end, _ in cookie_ranges):
             continue  # A cookie header contains attributes and preferences as well as credentials.
-        if any(start <= m.start(group) < end for start, end in query_secrets):
+        if any(start <= m.start(group) < end for start, end, _ in query_secrets):
             continue  # URL parameters end at &, even when a generic bare value would continue.
-        conf = value_confidence(m.group(group), quoted=group != "bare")
+        operator = text[m.end("key") : m.start(group)]
+        # Conventional source assignments can contain calls and known runtime references.
+        code_assignment = (
+            operator[0].isspace() and operator[-1].isspace() and operator.strip() == "="
+        )
+        conf = value_confidence(
+            m.group(group), quoted=group != "bare", code_assignment=code_assignment
+        )
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
     if secret_key(key) and not (
