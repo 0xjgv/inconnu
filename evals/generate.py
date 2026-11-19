@@ -566,13 +566,13 @@ class Gen:
             )
             self.add(
                 "neg:limits:public-envelope",
-                f"{jwt_segment(public)}.{jwt_segment('{}')}.release_notes",
+                f"{jwt_segment(public)}.{jwt_segment('[]' if i % 2 else '{}')}.release_notes",
             )
             private = self.r.choice(
                 [
                     json.dumps({"password": "violet47"}),
                     json.dumps({"format": "json", "v": [self.s(B64URL, 22)]}),
-                    json.dumps({"\u5f20\u4f1f": 123456789}),
+                    json.dumps({"\u5f20\u4f1f": 123456789}, ensure_ascii=False),
                     '{"pin":9}',
                     "  [123456789]",
                 ]
