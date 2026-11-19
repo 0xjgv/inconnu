@@ -40,6 +40,22 @@ def test_encoded_private_or_unknown_json_redacts_every_source_character(raw):
     ]
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"value": "' + "private" * 2000,  # oversized: redacted without parsing
+        "[" * 6000 + "]" * 6000,  # too deep for some json parsers
+    ],
+)
+def test_oversized_or_deep_json_fails_closed(raw):
+    assert redact("notes " + segment(raw))[0] == "notes [SECRET:entropy]"
+
+
+def test_oversized_encoded_prose_after_whitespace_stays_visible():
+    text = "notes " + segment(" " * 20 + "The release notes list every change. " * 400)
+    assert redact(text) == (text, [])
+
+
 def test_noncanonical_padding_bits_do_not_enter_public_allowlist():
     # e31 is a noncanonical base64 spelling of {}.
     assert redact("meta.e31.release_notes")[0] == "meta.[SECRET:entropy].release_notes"

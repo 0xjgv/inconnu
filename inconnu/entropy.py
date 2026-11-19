@@ -130,6 +130,11 @@ def _json_envelope(token: str) -> bool | None:
             validate=True,
         )
         prefix = prefix.lstrip(b" \t\r\n")
+        if not prefix and len(token) > MAX_JSON_LEN:
+            # Leading whitespace hid the first byte: look further, within the size cap.
+            prefix = base64.b64decode(
+                token[:MAX_JSON_LEN], altchars=b"-_", validate=True
+            ).lstrip(b" \t\r\n")
         if prefix and not prefix.startswith((b"{", b"[")):
             return None
         if len(token) > MAX_JSON_LEN:

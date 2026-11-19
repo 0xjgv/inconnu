@@ -566,13 +566,13 @@ class Gen:
             )
             self.add(
                 "neg:limits:public-envelope",
-                f"{jwt_segment(public)}.{jwt_segment('{}')}.release_notes",
+                f"{jwt_segment(public)}.{jwt_segment('[]' if i % 2 else '{}')}.release_notes",
             )
             private = self.r.choice(
                 [
                     json.dumps({"password": "violet47"}),
                     json.dumps({"format": "json", "v": [self.s(B64URL, 22)]}),
-                    json.dumps({"\u5f20\u4f1f": 123456789}),
+                    json.dumps({"\u5f20\u4f1f": 123456789}, ensure_ascii=False),
                     '{"pin":9}',
                     "  [123456789]",
                 ]
@@ -769,9 +769,7 @@ class Gen:
                 "neg:context:identifier",
                 "{v}",
                 token,
-                key=self.r.choice(
-                    ["requestId", "objectId", "payment_intent", "traceId"]
-                ),
+                key=self.r.choice(["requestId", "objectId", "orderId", "traceId"]),
             )
             self.add("pos:context:identifier-secret", "{v}", token, "SECRET", "entropy")
             self.add(
@@ -796,7 +794,7 @@ class Gen:
                 "{v}",
                 self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
                 "SECRET",
-                "entropy",
+                "stripe-key",
                 key=object_key,
             )
 
@@ -910,7 +908,7 @@ class Gen:
                 "{v}",
                 self.r.choice(["sk_live_", "rk_live_", "whsec_"]) + token,
                 "SECRET",
-                "entropy",
+                "stripe-key",
                 key=key,
             )
             self.add(
