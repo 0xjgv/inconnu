@@ -80,6 +80,13 @@ def test_numeric_contact_value_is_not_a_person_mention():
     assert redact("owner: 3611218499") == ("owner: 3611218499", [])
 
 
+@pytest.mark.parametrize("cue", ["hi ", "hi\x1c", "HI\t", "Hı\u00a0"])
+def test_cue_whitespace_and_case_keep_person_spans(cue):
+    assert redact(f"{cue}maya group, please review.")[0] == (
+        f"{cue}[PERSON], please review."
+    )
+
+
 @pytest.mark.parametrize("key", ["team_name", "groups.name", "squadDisplayName"])
 def test_team_column_allows_ambiguous_label_without_affecting_secrets(key):
     assert redact("Morgan Stanley", key=key) == ("Morgan Stanley", [])

@@ -20,6 +20,7 @@ UPPER, LOWER = "A-ZÀ-ÖØ-ÞĀĆČĎĘĚŁŃŇŐŘŚŠŤŮŰŹŻŽ", "a-zß-ö�
 WORD = re.compile(
     rf"[{UPPER}](?:[{LOWER}]+(?:['’-][{UPPER}]?[{LOWER}]+)?|['’][{UPPER}][{LOWER}]+)"
 )  # Maria, Smith-Jones, O'Connor
+ASCII_WORD = re.compile(r"[A-Z](?:[a-z]+(?:['-][A-Z]?[a-z]+)?|'[A-Z][a-z]+)")
 ANY_CASE_WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)?")
 # Between first and last name: spaces, a middle initial, or a lowercase particle (van der, da, de la, bin).
 GAP = re.compile(
@@ -36,14 +37,18 @@ NAME_KEY = re.compile(
 COMPANY_KEY = re.compile(
     r"(?i)^(?:company|organi[sz]ation|org|tenant|vendor|employer)(?:_?name)?$"
 )
-HUMAN_CUE = r"(?i)(?:\b(?:assigned to|reviewed by|triaged by|done by|owner:|reporter:|contact:|hi|dear|thanks|cc)|meeting notes:)"
+BOUNDARY_CUES = "assigned to|reviewed by|triaged by|done by|owner:|reporter:|contact:|hi|dear|thanks|cc"
+MEETING_CUE = "meeting notes:"
+HUMAN_CUE = rf"(?i)(?:\b(?:{BOUNDARY_CUES})|{MEETING_CUE})"
 HUMAN_CONTEXT = re.compile(HUMAN_CUE + r"\s+$")
+ASCII_MENTION_CUE = re.compile(rf"(?:{BOUNDARY_CUES}|{MEETING_CUE})\s")
 MENTION = re.compile(
     HUMAN_CUE
     + rf"[^\S\r\n]+(?=(?P<title>{TITLE_WORD}\.[ \t]+)?"
     + r"(?P<subject>[^,\r\n.!?;:，。！？；：]{1,100})(?:[,\r\n.!?;:，。！？；：]|$))"
 )
 NAME_JOINER = re.compile(r"['’\u200c\u200d-]")
+ASCII_NAME_WORD = re.compile(r"[A-Za-z]+(?:['-][A-Za-z]+)*")
 TEAM_COLUMN = re.compile(
     r"(?:teams?|groups?|squads?)(?:_(?:name|display_name|slug|handle|type))?"
 )
@@ -91,14 +96,17 @@ def wordlist(resource: str) -> frozenset[str]:
 
 
 def _fold(word: str) -> str:
+    if word.isascii():
+        return word.lower()
     return (
         unicodedata.normalize("NFKD", word).encode("ascii", "ignore").decode().lower()
     )
 
 
 def _known(word: str, resource: str) -> bool:
-    return _fold(word) in wordlist(resource) or _fold(word.split("-")[0]) in wordlist(
-        resource
+    names = wordlist(resource)
+    return _fold(word) in names or (
+        "-" in word and _fold(word.split("-", 1)[0]) in names
     )
 
 
@@ -111,6 +119,8 @@ def _unicode_name(value: str) -> bool:
     words = value.split()
     if not 1 <= len(words) <= 5:
         return False
+    if value.isascii():
+        return all(ASCII_NAME_WORD.fullmatch(word) for word in words)
     return all(
         part
         and part[0].isalpha()
@@ -168,8 +178,6 @@ def _team_subject(value: str) -> bool:
 
 def _mentions(text: str):
     """Yield contextual subject offsets and whether the subject is a team."""
-    if len(text.split(maxsplit=1)) < 2:
-        return
     for m in MENTION.finditer(text):
         raw = m["subject"].rstrip()
         words = list(SUBJECT_WORD.finditer(raw))
@@ -221,7 +229,10 @@ def _words_outside_teams(text: str, teams: list[tuple[int, int]]):
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     if key:
-        parts = CAMEL.sub("_", key).lower().split(".")
+        lower_key = key.lower()
+        if lower_key != key:
+            lower_key = CAMEL.sub("_", key).lower()
+        parts = lower_key.split(".")
         key = parts[-1]
         if TEAM_COLUMN.fullmatch(key) or (
             key in {"name", "slug", "handle", "display_name"}
@@ -274,25 +285,44 @@ def find(text: str, key: str | None):
             start = text.index(stripped)
             yield start, start + len(stripped), "PERSON", 0.9, "names"
             return
+    # Every prose match needs whitespace between a cue, title, or name words.
+    if len(text.split(maxsplit=1)) < 2:
+        return
+    # Use the ASCII cue check only on ASCII input. Unicode case-insensitive
+    # matches and whitespace go through the original matcher.
+    lower = text.lower() if text.isascii() else None
+    has_cue = lower is None or ASCII_MENTION_CUE.search(lower) is not None
     teams = []
-    for start, end, team in _mentions(text):
-        if team:
-            teams.append((start, end))
-        else:
-            yield start, end, "PERSON", 0.85, "names"
-    words = list(_words_outside_teams(text, teams) if teams else WORD.finditer(text))
+    if has_cue:
+        for start, end, team in _mentions(text):
+            if team:
+                teams.append((start, end))
+            else:
+                yield start, end, "PERSON", 0.85, "names"
+    if lower == text:  # WORD always starts with an uppercase letter.
+        return
+    word_pattern = WORD if lower is None else ASCII_WORD
+    words = list(
+        _words_outside_teams(text, teams) if teams else word_pattern.finditer(text)
+    )
     i = 0
     while i < len(words):
         word = words[i]
+        start = word.start()
         # The longest run of capitalized words joined by name gaps, up to four.
         j = i
         while (
             j + 1 < len(words)
             and j - i < 3
+            and text[words[j].end()].isspace()
             and GAP.fullmatch(text, words[j].end(), words[j + 1].start())
         ):
             j += 1
-        title = TITLE.search(text, max(0, word.start() - 8), word.start())
+        title = (
+            TITLE.search(text, max(0, start - 8), start)
+            if start and text[start - 1].isspace()
+            else None
+        )
         if title:
             # The title's own word, then only words that are known names: "Mr. Smith Approved Review" -> "Mr. Smith".
             last = i
@@ -329,9 +359,9 @@ def find(text: str, key: str | None):
         ):
             i += 1  # "Thanks Maria Gonzalez": start the name at Maria
             continue
-        if _common(first) and not known_last or _common(last) and not known_first:
+        if not known_last and _common(first) or not known_first and _common(last):
             conf = 0.0
-        elif HUMAN_CONTEXT.search(text, max(0, word.start() - 48), word.start()):
+        elif has_cue and HUMAN_CONTEXT.search(text, max(0, start - 48), start):
             conf = 0.85
         elif known_first:
             conf = 0.9 if known_last else 0.7
@@ -340,7 +370,7 @@ def find(text: str, key: str | None):
                 0.6 if known_last else 0.0
             )  # unknown first name before a known surname: uncertain
         if conf:
-            yield word.start(), words[j].end(), "PERSON", conf, "names"
+            yield start, words[j].end(), "PERSON", conf, "names"
             i = j + 1
         else:
             i += 1
