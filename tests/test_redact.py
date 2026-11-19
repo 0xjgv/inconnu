@@ -175,6 +175,29 @@ def test_secret_context(text, expected):
     assert redact(text)[0] == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Cookie: session =violet47", "Cookie: session =[SECRET:generic]"),
+        (
+            "cookie: theme=dark; SESSION\t=\t1947; locale=en-US",
+            "cookie: theme=dark; SESSION\t=\t[SECRET:generic]; locale=en-US",
+        ),
+        ("Cookie: session_id=violet47", "Cookie: session_id=[SECRET:generic]"),
+        (
+            "Cookie: JSESSIONID=violet47; PHPSESSID=violet47; connect.sid=violet47",
+            "Cookie: JSESSIONID=[SECRET:generic]; PHPSESSID=[SECRET:generic]; "
+            "connect.sid=[SECRET:generic]",
+        ),
+        ("Cookie: theme =dark; locale =en-US", "Cookie: theme =dark; locale =en-US"),
+        ("Cookie: session_count =1947", "Cookie: session_count =1947"),
+        ("session =violet47", "session =violet47"),
+    ],
+)
+def test_cookie_pairs_allow_horizontal_whitespace(text, expected):
+    assert redact(text)[0] == expected
+
+
 def test_entropy_unknown_secret():
     value = "q7Zp2Lk9Xv4Rt8Wm3Nb6Yc1Hd5Js0Gf"
     redacted, types = placeholders(f"the value {value} was leaked")

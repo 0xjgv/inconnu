@@ -130,6 +130,15 @@ KEY_VALUE = re.compile(
     r"|\x60(?P<bq>[^\x60\n]*)(?:\x60|(?=\n|\Z))"
     r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
 )
+COOKIE_NAME = r"[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+"
+COOKIE_HEADER = re.compile(
+    rf"(?i)(?<![\w-])cookie:[ \t]*(?={COOKIE_NAME}[ \t]*=)(?P<pairs>[^\r\n]*)"
+)
+# session, laravel_session, JSESSIONID, PHPSESSID, ASP.NET_SessionId, connect.sid; not session_count
+SESSION_COOKIE = re.compile(r"(?i)(?:sess(?:ion)?(?:[_-]?id)?|(?<![a-z0-9])sid)$")
+COOKIE_PAIR = re.compile(
+    rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
+)
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
     r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
@@ -194,6 +203,16 @@ def _private_keys(text: str):
         pos = end.end()
 
 
+def _cookie_values(text: str):
+    for header in COOKIE_HEADER.finditer(text):
+        for pair in COOKIE_PAIR.finditer(header["pairs"]):
+            if SESSION_COOKIE.search(pair["name"]) or secret_key(pair["name"]):
+                value = pair["value"].rstrip(" \t")
+                if value:
+                    start = header.start("pairs") + pair.start("value")
+                    yield start, start + len(value)
+
+
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
@@ -212,9 +231,14 @@ def find(text: str, key: str | None):
         for m in matches:
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
+    if "cookie:" in lower:
+        for start, end in _cookie_values(text):
+            yield start, end, "SECRET:generic", 0.95, "keyword"
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
+        if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
+            continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
         conf = value_confidence(m.group(group), quoted=group != "bare")
         if conf:
