@@ -91,6 +91,7 @@ def predict_phone_regex(records):
 def score(records, predictions, types=None) -> dict:
     """types limits which predicted types count (for single-purpose references)."""
     gold_n, gold_hit, gold_cov = defaultdict(int), defaultdict(int), defaultdict(int)
+    gold_full, neg_by_type = defaultdict(int), defaultdict(int)
     pred_n, pred_hit = defaultdict(int), defaultdict(int)
     neg_n, neg_hit, neg_by_detector = (
         defaultdict(int),
@@ -113,6 +114,8 @@ def score(records, predictions, types=None) -> dict:
                 covered.update(range(max(p[0], g["start"]), min(p[1], g["end"])))
             if len(covered) >= 0.9 * (g["end"] - g["start"]):
                 gold_cov[key] += 1
+            if len(covered) == g["end"] - g["start"]:
+                gold_full[key] += 1
         for p in preds:
             pred_n[p[2]] += 1
             if any(
@@ -125,17 +128,22 @@ def score(records, predictions, types=None) -> dict:
             neg_hit[record["category"]] += bool(preds)
             for detector in {p[3] for p in preds}:
                 neg_by_detector[detector] += 1
+            for kind in {p[2] for p in preds}:
+                neg_by_type[kind] += 1
     ratio = lambda a, b: round(a / b, 4) if b else None  # noqa: E731
     negatives = sum(neg_n.values())
     return {
         "recall": {k: ratio(gold_hit[k], gold_n[k]) for k in sorted(gold_n)},
         "covered": {k: ratio(gold_cov[k], gold_n[k]) for k in sorted(gold_n)},
+        "fully_covered": {k: ratio(gold_full[k], gold_n[k]) for k in sorted(gold_n)},
         "gold": dict(sorted(gold_n.items())),
         "precision": {k: ratio(pred_hit[k], pred_n[k]) for k in sorted(pred_n)},
         "predicted": dict(sorted(pred_n.items())),
         "predicted_hits": dict(sorted(pred_hit.items())),
         "frr": {k: ratio(neg_hit[k], neg_n[k]) for k in sorted(neg_n)},
         "frr_all": ratio(sum(neg_hit.values()), negatives),
+        "negative_records": negatives,
+        "frr_by_type": {k: ratio(v, negatives) for k, v in sorted(neg_by_type.items())},
         "frr_by_detector": {
             k: ratio(v, negatives) for k, v in sorted(neg_by_detector.items())
         },
@@ -262,6 +270,15 @@ def table(split: str, results: dict) -> str:
     for k, n in new["predicted"].items():
         if k.startswith("SECRET"):
             lines.append(f"| {k} | {n} | {fmt(new['precision'][k])} |")
+    lines += [
+        "",
+        "## Full-span coverage (100% of gold characters redacted; any label)",
+        "",
+        "| kind | full coverage |",
+        "|---|---|",
+    ]
+    for k, value in new["fully_covered"].items():
+        lines.append(f"| {k} | {fmt(value)} |")
     lines += [
         "",
         f"## {split}: false-redaction rate on negatives (share of records with any redaction)",
