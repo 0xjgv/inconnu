@@ -97,6 +97,20 @@ def test_jwt_redacts_header_claims_and_signature(header, claims):
     assert redact("value=" + token)[0] == "value=[SECRET:jwt]"
 
 
+@pytest.mark.parametrize(
+    "prefix,token",
+    [
+        ("", jwt(json.dumps({"alg": "RS256", "x5c": ["MIIC" * 1500]}), {})),
+        ("", jwt('{"alg":"HS256"}', {"groups": [f"g-{i:05d}" for i in range(1500)]})),
+        ("", jwt('{"alg":"HS256"}', {}).rsplit(".", 1)[0] + "." + "A" * 2400),
+        ("v2.", jwt('{"alg":"HS256"}', {"sub": "user-account"})),
+    ],
+    ids=["large-header", "large-claims", "large-signature", "after-dot"],
+)
+def test_jwt_of_any_size_after_a_dot_is_redacted_whole(prefix, token):
+    assert redact("value " + prefix + token)[0] == "value " + prefix + "[SECRET:jwt]"
+
+
 def test_unsigned_jwt_claims_are_sensitive():
     token = jwt('{"alg":"none"}', {"sub": "user-account"}).rsplit(".", 1)[0] + "."
     assert redact(token)[0] == "[SECRET:jwt]"

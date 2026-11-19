@@ -35,7 +35,11 @@ def update(target: str) -> int:
     if target:
         environment["INCONNU_VERSION"] = "v" + target.lstrip("v")
     installer = Path(__file__).with_name("install.sh")
-    return subprocess.run(["sh", str(installer)], env=environment).returncode  # noqa: S603, S607
+    return subprocess.run(  # noqa: S603
+        ["sh", str(installer)],  # noqa: S607
+        env=environment,
+        stdin=subprocess.DEVNULL,
+    ).returncode
 
 
 def verify_signature(public_key: str, message: str, signature_file: str) -> int:
