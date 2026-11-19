@@ -123,13 +123,18 @@ KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
     r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
 )
-BRACKET_PLACEHOLDER = re.compile(r"\[(?:SECRET:[a-z-]+|REDACTED)\]")
+# [REDACTED] and the placeholders this redactor emits, so its own output stays as it is.
+BRACKET_PLACEHOLDER = re.compile(
+    r"(?i)\[(?:SECRET:[a-z-]+|REDACTED|EMAIL|PHONE|IP|SSN|CARD|IBAN|PERSON)\]"
+)
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
     r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
+# get_secret(), os.environ[...]: code with or without spaces around the operator
+CODE_CALL = re.compile(r"\w[(\[]")
 CODE_VALUE = re.compile(
-    r"\w\(|\w\[|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\."
+    r":$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\."
 )
 
 
@@ -150,7 +155,7 @@ def value_confidence(value: str, quoted: bool, code_assignment: bool = False) ->
         if len(value) < 4:
             return 0.5  # a short literal under a secret name (a PIN, "abc"): uncertain
         return 0.9 if len(value) >= 8 or not value.isalpha() else 0.7
-    if code_assignment and CODE_VALUE.search(value):
+    if CODE_CALL.search(value) or (code_assignment and CODE_VALUE.search(value)):
         return 0.0  # os.environ[...], get_secret(), settings.TOKEN
     if value.isdigit():
         return 0.6 if len(value) >= 6 else 0.9

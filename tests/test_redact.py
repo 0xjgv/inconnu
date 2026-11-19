@@ -348,11 +348,19 @@ def test_second_bot_review_cases():
             "const password = req.body.password;",
         ),
         ("password = getpass.getpass()", None, "password = getpass.getpass()"),
+        ("password=getpass.getpass()", None, "password=getpass.getpass()"),
+        (
+            'connect(password=os.environ["DB_PASSWORD"])',
+            None,
+            'connect(password=os.environ["DB_PASSWORD"])',
+        ),
         ("const color = violet.green;", None, "const color = violet.green;"),
         ("[foo]", "array", "[foo]"),
         ("1947", "year", "1947"),
         ("null", "password", "null"),
         ("[REDACTED]", "password", "[REDACTED]"),
+        ("[redacted]", "password", "[redacted]"),
+        ("[EMAIL]", "password", "[EMAIL]"),
     ],
 )
 def test_explicit_credential_context(text, key, expected):
