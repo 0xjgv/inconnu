@@ -103,9 +103,11 @@ PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
 URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s\"'<>]+")
 QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
-COOKIE_HEADER = re.compile(r"(?im)(?<![\w-])(?P<set>set-)?cookie\s*:\s*(?P<s>[^\r\n]*)")
+COOKIE_HEADER = re.compile(
+    r"(?im)(?<![\w-])(?P<set>set-)?cookie[ \t]*:[ \t]*(?P<s>[^\r\n]*)"
+)
 COOKIE_PAIR = re.compile(
-    r'(?:^|;)\s*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
+    r'(?m)(?:^|;)\s*(?P<key>[^\s=;]+)=(?:"(?P<dq>(?:\\[^\r\n]|[^"\\\r\n])*)"(?=\s*(?:;|$))'
     r'|"(?P<unclosed>[^\r\n]*)|(?P<bare>[^;\r\n]*))'
 )
 SESSION_KEY = re.compile(

@@ -167,6 +167,14 @@ def test_cookie_fails_closed_on_unterminated_quote_and_secret_column():
     )
 
 
+def test_cookie_lines_each_parsed_and_header_ends_at_its_line():
+    assert (
+        redact("theme=dark\nsession=second-secret", key="Cookie")[0]
+        == "theme=dark\nsession=[SECRET:cookie]"
+    )
+    assert "hunter2x" not in redact("Cookie:\nlogin password=hunter2x")[0]
+
+
 def test_quoted_cookie_preserves_escaped_quote_and_separators():
     assert (
         redact(r'Cookie: auth="one\"two;three"; theme=dark')[0]
