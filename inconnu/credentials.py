@@ -10,8 +10,9 @@ import base64
 import binascii
 import json
 import re
+from urllib.parse import unquote
 
-URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:")
+URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{0,64}:")
 
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
@@ -104,6 +105,11 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
+# Backticks and trailing ,;)}] belong to the surrounding prose or code, as for bare key=value values.
+URL = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://(?:[^\s\"'<>\x60,;)}\]]|[,;)}\]](?=[^\s\"'<>\x60,;)}\]]))+"
+)
+QUERY_VALUE = re.compile(r"(?:^|&)(?P<key>[^&=#]+)=(?P<s>[^&#]*)")
 # host:8080/path?x=a@b (or ?, #): a port then a path, query or fragment, not user:password@host
 URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
@@ -238,6 +244,21 @@ def _jwt(value: str) -> bool:
     )
 
 
+def _query_secrets(text: str):
+    """(start, end, confidence) of each secret-named parameter value; confidence is 0 for a placeholder."""
+    for url in URL.finditer(text) if "://" in text and "?" in text else ():
+        query = url.group().find("?")
+        if query < 0:
+            continue
+        start = url.start() + query + 1
+        end = text.find("#", start, url.end())
+        for m in QUERY_VALUE.finditer(text[start : end if end >= 0 else url.end()]):
+            name = unquote(m.group("key"))
+            if name.lower() in {"key", "sig"} or secret_key(name):
+                conf = value_confidence(unquote(m.group("s")), quoted=True)
+                yield start + m.start("s"), start + m.end("s"), conf
+
+
 def _cookie_values(text: str):
     for header in COOKIE_HEADER.finditer(text):
         for pair in COOKIE_PAIR.finditer(header["pairs"]):
@@ -251,6 +272,10 @@ def _cookie_values(text: str):
 def find(text: str, key: str | None):
     """Yield (start, end, type, confidence, detector) candidates."""
     lower = text.lower()
+    query_secrets = list(_query_secrets(text))
+    for start, end, conf in query_secrets:
+        if conf:
+            yield start, end, "SECRET:url-query", 0.97, "rule"
     if "private key" in lower:
         for start, end in _private_keys(text):
             yield start, end, "SECRET:private-key", 0.99, "rule"
@@ -277,6 +302,8 @@ def find(text: str, key: str | None):
         if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
             continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
+        if any(start <= m.start(group) < end for start, end, _ in query_secrets):
+            continue  # URL parameters end at &, even when a generic bare value would continue.
         operator = text[m.end("key") : m.start(group)]
         # Conventional source assignments can contain calls and known runtime references.
         code_assignment = (

@@ -20,6 +20,68 @@ def jwt(header, claims):
 
 
 @pytest.mark.parametrize(
+    "parameter",
+    [
+        "token",
+        "key",
+        "sig",
+        "access_token",
+        "X-Amz-Signature",
+        "X-Goog-Signature",
+        "api%5Fkey",
+    ],
+)
+def test_url_query_keeps_host_path_and_other_parameters(parameter):
+    prefix = f"https://service.example/path?page=2&{parameter}="
+    assert (
+        redact(prefix + "a%2Bb%3Dc&ref=main#section")[0]
+        == prefix + "[SECRET:url-query]&ref=main#section"
+    )
+
+
+@pytest.mark.parametrize(
+    "text,redacted",
+    [
+        (
+            "fetch(`https://x.example/p?token=ab12cd34`)",
+            "fetch(`https://x.example/p?token=[SECRET:url-query]`)",
+        ),
+        (
+            "see (https://x.example/p?token=ab12cd34), then",
+            "see (https://x.example/p?token=[SECRET:url-query]), then",
+        ),
+        (
+            "`https://x.example/p?token=${TOKEN}`",
+            "`https://x.example/p?token=${TOKEN}`",
+        ),
+        (
+            "https://x.example/p?token=changeme&ref=main",
+            "https://x.example/p?token=changeme&ref=main",
+        ),
+    ],
+)
+def test_url_query_value_stops_at_delimiters_and_skips_placeholders(text, redacted):
+    assert redact(text)[0] == redacted
+
+
+@pytest.mark.parametrize(
+    "scheme", ["postgres", "postgresql", "mysql", "mongodb+srv", "redis", "amqp"]
+)
+@pytest.mark.parametrize(
+    "user,password", [("", "short-pass!"), ("service", "low_entropy_" * 20)]
+)
+def test_dsn_password_only_and_long_password(scheme, user, password):
+    prefix = f"{scheme}://{user}:"
+    suffix = "@db.internal:5432/prod"
+    assert (
+        redact(prefix + password + suffix)[0]
+        == prefix + "[SECRET:url-password]" + suffix
+    )
+    clean = f"{scheme}://db.internal:5432/prod"
+    assert redact(clean)[0] == clean
+
+
+@pytest.mark.parametrize(
     "header",
     [
         '{ "alg": "HS256", "typ": "JWT" }',

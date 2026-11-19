@@ -442,6 +442,39 @@ class Gen:
 
     # ---------- negatives ----------
 
+    def context_urls(self, n: int):
+        for i in range(n):
+            value = self.s(B62, 8) + "%2Btail%3D"
+            param = self.r.choice(
+                ["token", "key", "sig", "access_token", "X-Amz-Signature", "api%5Fkey"]
+            )
+            self.add(
+                "pos:context:url-query",
+                f"https://service.example/hook?{param}={{v}}&page=2",
+                value,
+                "SECRET",
+                "url-query",
+            )
+            self.add(
+                "neg:context:url-query",
+                f"https://github.com/acme/repo?ref=release-{i}&page=2&sort=updated&utm_source=mail",
+            )
+            scheme = self.r.choice(
+                ["postgres", "postgresql", "mysql", "mongodb+srv", "redis", "amqp"]
+            )
+            # Password-only userinfo is common for Redis; >128-byte passwords expose the old regex cap.
+            password = self.s(B62, 140) if i % 2 else "short-pass!"
+            user = "" if i % 2 == 0 else "service"
+            self.add(
+                "pos:context:url-password",
+                f"{scheme}://{user}:{{v}}@db.internal:5432/prod",
+                password,
+                "SECRET",
+                "url-password",
+            )
+            self.add("neg:context:url-password", f"{scheme}://db.internal:5432/prod")
+            self.add("neg:context:clone-url", "https://git.example/acme/repo.git")
+
     def context_jwt(self, n: int):
         for i in range(n):
             # Legal JSON whitespace changes the encoded prefix; a short payload is still a JWT.
@@ -460,6 +493,34 @@ class Gen:
                 + jwt_segment("{}")
                 + "."
                 + "release_notes",
+            )
+
+    def heldout_urls(self, n: int):
+        for i in range(n):
+            self.add(
+                "pos:holdout:url-query",
+                'fetch("https://service.example/api?ref=main&X-Goog-Signature={v}#view")',
+                self.s(HEXD, 40),
+                "SECRET",
+                "url-query",
+            )
+            self.add(
+                "pos:holdout:url-password",
+                'connect("redis://:{v}@cache.internal/0")',
+                "pw-" + self.s(B62, 9),
+                "SECRET",
+                "url-password",
+            )
+            self.add(
+                "neg:holdout:url",
+                'fetch("https://git.example/team/repo.git?ref=release&sort=desc#readme")',
+            )
+            self.add(
+                "neg:holdout:url-password", 'connect("redis://cache.internal:6379/0")'
+            )
+            self.add(
+                "neg:holdout:clone-url",
+                f"origin: ssh://git@code.internal/team/repo-{i}.git",
             )
 
     def heldout_jwt(self, n: int):
@@ -844,6 +905,13 @@ def main():
         g.secrets(40)
         g.negatives(200)
         g.real_negatives(1000)
+        extra = Gen(seed + 1000)
+        extra.context_urls(80)
+        g.records.extend(extra.records)
+        if split == "test":
+            heldout = Gen(seed + 11000)
+            heldout.heldout_urls(12)
+            g.records.extend(heldout.records)
         extra = Gen(seed + 3000)
         extra.context_jwt(80)
         g.records.extend(extra.records)
