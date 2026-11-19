@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import re
 
+URL_USERINFO_PREFIX = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:")
+
 # (kind, pattern, confidence, literals). The secret is group "s" when present, else the whole match.
 # A rule's regex only runs when one of its literals occurs in the text: most cells hold none.
 RULES = [
@@ -19,7 +21,7 @@ RULES = [
     ),
     (
         "github-token",
-        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{82})\b",
+        r"\b(?:gh[pousr]_[0-9A-Za-z]{36}(?![0-9A-Za-z])|github_pat_[0-9A-Za-z_]{82}\b)",
         0.99,
         ("ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"),
     ),
@@ -78,7 +80,7 @@ RULES = [
     ),
     (
         "url-password",
-        r"\b[A-Za-z][A-Za-z0-9+.-]{1,20}://[^\s:/@?#]{1,64}:(?P<s>\S{1,128})@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
+        rf"{URL_USERINFO_PREFIX.pattern}(?P<s>\S+)@(?:[\w.-]+|\[[0-9A-Fa-f:.]+\])",
         0.97,
         ("://",),
     ),
@@ -97,6 +99,7 @@ RULES = [
 PEM_BEGIN = re.compile(r"-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 PEM_END = re.compile(r"-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----")
 URL_PASSWORD = next(pattern for kind, pattern, *_ in RULES if kind == "url-password")
+# host:8080/path?x=a@b (or ?, #): a port then a path, query or fragment, not user:password@host
 URL_PORT = re.compile(r"\d+[/#?]")
 KEYWORD_LITERALS = (
     "pass",
@@ -117,48 +120,81 @@ KEYWORD = (
     r"|session[_-]?(?:id|key)|cookie|signature)"
 )
 SECRET_KEY = re.compile(
-    rf"(?:^|[^a-z0-9]){KEYWORD}$"
+    rf"(?:^|[^a-z0-9])(?:{KEYWORD}|authorization)$"
 )  # matched against a snake_cased, lowercased key
 CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 KEY_VALUE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<key>(?:[\w.-]{{0,48}}?(?:[_.-]|(?<=[a-z0-9])(?=[A-Z])))?(?i:{KEYWORD}))(?![\w-])[\"']?\s*(?::=|=>|=|:(?=[\s\"'\x60]))\s*"
-    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.){1,4096})\"|'(?P<sq>(?:[^'\\\n]|\\.){1,4096})'|\x60(?P<bq>[^\x60\n]{1,4096})\x60|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]])){1,256}))"
+    r"(?:\"(?P<dq>(?:[^\"\\\n]|\\.?)*)(?:\"|(?=\n|\Z))"
+    r"|'(?P<sq>(?:[^'\\\n]|\\.?)*)(?:'|(?=\n|\Z))"
+    r"|\x60(?P<bq>[^\x60\n]*)(?:\x60|(?=\n|\Z))"
+    r"|(?P<bare>(?:[^\s\"'\x60,;)}\]<>]|[,;)}\]](?=[^\s\"'\x60,;)}\]]))+))"
+)
+COOKIE_NAME = r"[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+"
+COOKIE_HEADER = re.compile(
+    rf"(?i)(?<![\w-])cookie:[ \t]*(?={COOKIE_NAME}[ \t]*=)(?P<pairs>[^\r\n]*)"
+)
+# session, laravel_session, JSESSIONID, PHPSESSID, ASP.NET_SessionId, connect.sid; not session_count
+SESSION_COOKIE = re.compile(r"(?i)(?:sess(?:ion)?(?:[_-]?id)?|(?<![a-z0-9])sid)$")
+COOKIE_PAIR = re.compile(
+    rf"(?:^|;)[ \t]*(?P<name>{COOKIE_NAME})[ \t]*=[ \t]*(?P<value>[^;]*)"
+)
+# [REDACTED] and the placeholders this redactor emits, so its own output stays as it is.
+BRACKET_PLACEHOLDER = re.compile(
+    r"(?i)\[(?:SECRET:[a-z-]+|REDACTED|EMAIL|PHONE|IP|SSN|CARD|IBAN|PERSON)\]"
 )
 PLACEHOLDER = re.compile(
     r"(?i)^(?:|none|null|nil|undefined|true|false|str|string|int|bool|bytes|any|optional\[.*|secret|password|token|"
-    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
+    r"changeme|redacted|hidden|example|test|xxx+|\*+|\.{3}|<[^>]*>|\$\{[^}]*\}?|\{\{.*\}\}|%\(?\w*\)?s|\$\w+)$"
 )
+# get_secret(), os.environ[...]: code with or without spaces around the operator
+CODE_CALL = re.compile(r"\w[(\[]")
 CODE_VALUE = re.compile(
-    r"\w\(|\w\[|:$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\.|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$"
+    r":$|^(?:os|process|self|this|config|settings|env|request|req|ctx|params|args|kwargs|cls)\."
 )
 
 
 def secret_key(key: str | None) -> bool:
-    return (
-        bool(key)
-        and len(key) <= 64
-        and bool(SECRET_KEY.search(CAMEL.sub("_", key).lower()))
+    component = key.rsplit(".", 1)[-1] if key else ""
+    return 0 < len(component) <= 64 and bool(
+        SECRET_KEY.search(CAMEL.sub("_", component).lower())
     )
 
 
-def value_confidence(value: str, quoted: bool) -> float:
+def value_confidence(value: str, quoted: bool, code_assignment: bool = False) -> float:
     """How likely the value of a secret-named key is a real secret rather than code or a placeholder."""
     value = value.strip()
-    if PLACEHOLDER.match(value):
+    if PLACEHOLDER.match(value) or BRACKET_PLACEHOLDER.fullmatch(value):
         return 0.0
     if quoted:
         if len(value) < 4:
             return 0.5  # a short literal under a secret name (a PIN, "abc"): uncertain
         return 0.9 if len(value) >= 8 or not value.isalpha() else 0.7
-    if CODE_VALUE.search(value):
+    if CODE_CALL.search(value) or (code_assignment and CODE_VALUE.search(value)):
         return 0.0  # os.environ[...], get_secret(), settings.TOKEN
     if value.isdigit():
-        return 0.6 if len(value) >= 6 else 0.0
+        return 0.6 if len(value) >= 6 else 0.9
     if re.fullmatch(r"[A-Za-z_]+", value):
         if secret_key(value):
             return 0.0  # passwd = passwd + ...: the variable itself, not a literal
         return 0.5  # a bare word (PASSWORD=hunter, id-token: write, password=access): uncertain, redacted unless a Scorer clears it
     return 0.9 if len(value) >= 4 else 0.5
+
+
+def url_password_candidates(text: str):
+    """Try a full password match at most once per non-whitespace token."""
+    if "@" not in text:
+        return
+    for token in re.finditer(r"\S+", text):
+        at = text.rfind("@", token.start(), token.end())
+        if at <= token.start():
+            continue
+        # The earliest possible prefix can reach every later host in the token.
+        prefix = URL_USERINFO_PREFIX.search(text, token.start(), at - 1)
+        while prefix and URL_PORT.match(text, prefix.end()):
+            prefix = URL_USERINFO_PREFIX.search(text, prefix.end(), at - 1)
+        if prefix and (match := URL_PASSWORD.match(text, prefix.start(), token.end())):
+            yield match
 
 
 def _private_keys(text: str):
@@ -173,15 +209,14 @@ def _private_keys(text: str):
         pos = end.end()
 
 
-def url_password_matches(text: str):
-    pos = 0
-    while match := URL_PASSWORD.search(text, pos):
-        # A numeric port followed by a path, query or fragment is outside userinfo.
-        if URL_PORT.match(text, match.start("s"), match.end("s")):
-            pos = match.start("s")  # the query may hold a URL with its own credentials
-            continue
-        yield match
-        pos = match.end()
+def _cookie_values(text: str):
+    for header in COOKIE_HEADER.finditer(text):
+        for pair in COOKIE_PAIR.finditer(header["pairs"]):
+            if SESSION_COOKIE.search(pair["name"]) or secret_key(pair["name"]):
+                value = pair["value"].rstrip(" \t")
+                if value:
+                    start = header.start("pairs") + pair.start("value")
+                    yield start, start + len(value)
 
 
 def find(text: str, key: str | None):
@@ -195,18 +230,30 @@ def find(text: str, key: str | None):
             continue
         group = "s" if "s" in pattern.groupindex else 0
         matches = (
-            url_password_matches(text)
+            url_password_candidates(text)
             if kind == "url-password"
             else pattern.finditer(text)
         )
         for m in matches:
             if m.start(group) < m.end(group):
                 yield m.start(group), m.end(group), f"SECRET:{kind}", conf, "rule"
+    if "cookie:" in lower:
+        for start, end in _cookie_values(text):
+            yield start, end, "SECRET:generic", 0.95, "keyword"
     for m in (
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
+        if m["key"].lower() == "cookie" and COOKIE_HEADER.match(text, m.start("key")):
+            continue  # the header parser owns named cookie values
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        conf = value_confidence(m.group(group), quoted=group != "bare")
+        operator = text[m.end("key") : m.start(group)]
+        # Conventional source assignments can contain calls and known runtime references.
+        code_assignment = (
+            operator[0].isspace() and operator[-1].isspace() and operator.strip() == "="
+        )
+        conf = value_confidence(
+            m.group(group), quoted=group != "bare", code_assignment=code_assignment
+        )
         if conf:
             yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
     if secret_key(key):

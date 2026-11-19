@@ -43,6 +43,25 @@ def test_pii(text, expected):
 
 
 @pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Dr. Christopher Nkrumah", "[PERSON]"),
+        (
+            "Ask Dr. Christopher Nkrumah, then call back.",
+            "Ask [PERSON], then call back.",
+        ),
+        ("Dr. Christopher Nkrumah\nRegards", "[PERSON]\nRegards"),
+        ("Dr. Christopher Approved Review", "[PERSON] Approved Review"),
+        ("Dr. Christopher Access.", "[PERSON] Access."),
+        ("Dr. Christopher Terminal.", "[PERSON] Terminal."),
+        ("Dr. Christopher started work.", "[PERSON] started work."),
+    ],
+)
+def test_titled_names_include_a_terminal_surname(text, expected):
+    assert redact(text)[0] == expected
+
+
+@pytest.mark.parametrize(
     ("value", "kind"),
     [
         ("AKIA" + "Z7Q2" * 4, "aws-access-key"),
@@ -102,6 +121,14 @@ def test_secret_rules(value, kind):
     assert f"SECRET:{kind}" in types
 
 
+def test_legacy_github_token_uses_its_alphabet_as_a_boundary():
+    value = "ghp_" + A36
+    assert redact(value + "_", key="trace_id")[0] == "[SECRET:github-token]_"
+    for suffix in ("9", "z"):
+        text = value + suffix
+        assert redact(text, key="trace_id") == (text, [])
+
+
 def test_webhooks_and_pem():
     slack = (
         "https://hooks.slack.com/services/"
@@ -145,6 +172,29 @@ def test_webhooks_and_pem():
     ],
 )
 def test_secret_context(text, expected):
+    assert redact(text)[0] == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Cookie: session =violet47", "Cookie: session =[SECRET:generic]"),
+        (
+            "cookie: theme=dark; SESSION\t=\t1947; locale=en-US",
+            "cookie: theme=dark; SESSION\t=\t[SECRET:generic]; locale=en-US",
+        ),
+        ("Cookie: session_id=violet47", "Cookie: session_id=[SECRET:generic]"),
+        (
+            "Cookie: JSESSIONID=violet47; PHPSESSID=violet47; connect.sid=violet47",
+            "Cookie: JSESSIONID=[SECRET:generic]; PHPSESSID=[SECRET:generic]; "
+            "connect.sid=[SECRET:generic]",
+        ),
+        ("Cookie: theme =dark; locale =en-US", "Cookie: theme =dark; locale =en-US"),
+        ("Cookie: session_count =1947", "Cookie: session_count =1947"),
+        ("session =violet47", "session =violet47"),
+    ],
+)
+def test_cookie_pairs_allow_horizontal_whitespace(text, expected):
     assert redact(text)[0] == expected
 
 
@@ -206,6 +256,14 @@ def test_batch_matches_single_calls():
     assert redact_batch(cells) == [redact(c) for c in cells]
 
 
+def test_long_qualified_credential_column():
+    prefix = "metadata." + "x" * 55 + "."
+    assert redact("violet47", key=prefix + "password")[0] == "[SECRET:generic]"
+    assert redact("violet47", key=prefix + "clientSecret")[0] == "[SECRET:generic]"
+    for key in (prefix + "password_count", "metadata.password." + "x" * 70):
+        assert redact("violet47", key=key) == ("violet47", [])
+
+
 def test_redact_json_gives_row_cells_their_column_names():
     data = {
         "cols": [{"name": "password"}, {"name": "note"}],
@@ -225,6 +283,24 @@ def test_redact_json_uses_keys_and_keeps_structure():
     assert out == {
         "rows": [{"email": "[EMAIL]", "password": "[SECRET:generic]", "count": 3}],
         "ok": True,
+    }
+
+
+def test_redact_json_signed_numbers_in_sensitive_fields():
+    data = {
+        "ssn": -123456789,
+        "phone": -4155552671.0,
+        "card": -4111111111111111,
+        "rows": [["+123456789", -123456789, -1234.5, -666123456]],
+        "cols": ["ssn", "order_id", "phone", "ssn"],
+        "balance": -4155552671.0,
+    }
+    assert redact_json(data) == {
+        **data,
+        "ssn": "[SSN]",
+        "phone": "[PHONE]",
+        "card": "[CARD]",
+        "rows": [["[SSN]", -123456789, -1234.5, -666123456]],
     }
 
 
@@ -309,6 +385,67 @@ def test_adversarial_cells_stay_linear():
         assert time.perf_counter() - started < 0.5, cell[:20]
 
 
+def test_many_disjoint_spans_stay_within_cpu_budget():
+    import time
+
+    copies = 28_000
+    text = "a@example.invalid " * copies
+    start = time.process_time()
+    redacted, findings = redact(text)
+    elapsed = time.process_time() - start
+    assert redacted == "[EMAIL] " * copies
+    assert len(findings) == copies
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
+
+
+def test_many_redacted_json_keys_stay_within_cpu_budget():
+    import time
+
+    copies = 14_000
+    data = {f"a{i}@example.invalid": i for i in range(copies)}
+    start = time.process_time()
+    out = redact_json(data)
+    elapsed = time.process_time() - start
+    assert len(out) == copies
+    assert out["[EMAIL]"] == 0
+    assert out[f"[EMAIL] ({copies})"] == copies - 1
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
+
+
+def test_span_sweep_joins_overlaps_but_leaves_adjacent_spans_separate(monkeypatch):
+    from inconnu import core
+
+    def find(text, key):
+        yield 0, 4, "EMAIL", 0.95, "regex"
+        yield 4, 8, "PHONE", 0.9, "phone"
+        yield 7, 12, "IP", 0.8, "ipaddress"
+        yield 10, 13, "PERSON", 0.7, "names"
+
+    monkeypatch.setattr(core, "DETECTORS", (find,))
+    redacted, spans = redact("abcdefghijklmnop")
+    assert redacted == "[EMAIL][IP]nop"
+    assert [(s["start"], s["end"], s["confidence"]) for s in spans] == [
+        (0, 4, 0.95),
+        (4, 13, 0.9),
+    ]
+
+
+def test_json_key_suffixes_respect_literal_keys():
+    assert redact_json(
+        {
+            "[EMAIL] (2)": "existing",
+            "a@example.invalid": 1,
+            "b@example.invalid": 2,
+            "[EMAIL] (3)": "later",
+        }
+    ) == {
+        "[EMAIL] (2)": "existing",
+        "[EMAIL]": 1,
+        "[EMAIL] (3)": 2,
+        "[EMAIL] (3) (2)": "later",
+    }
+
+
 @pytest.mark.parametrize(
     ("text", "kwargs", "leak"),
     [
@@ -346,3 +483,87 @@ def test_second_bot_review_cases():
     assert redact("Acme Corp", key="full_name")[0] == "Acme Corp"
     letters = "qZpLkXvRtWmNbYcHdJsGfQaZxPlMkJ"
     assert letters not in redact(f"rotated {letters} today")[0]
+
+
+@pytest.mark.parametrize(
+    ("text", "key", "expected"),
+    [
+        ("password=violet.green", None, "password=[SECRET:generic]"),
+        ("password = violet.green", None, "password = [SECRET:generic]"),
+        ("password=env.violet", None, "password=[SECRET:generic]"),
+        ("password=1947", None, "password=[SECRET:generic]"),
+        ("[foo]", "password", "[SECRET:generic]"),
+        ("[VIOLET]", "password", "[SECRET:generic]"),
+        ("1947", "token", "[SECRET:generic]"),
+        ("violet47", "authorization", "[SECRET:generic]"),
+        ("password = settings.SECRET_KEY", None, "password = settings.SECRET_KEY"),
+        (
+            "const password = req.body.password;",
+            None,
+            "const password = req.body.password;",
+        ),
+        ("password = getpass.getpass()", None, "password = getpass.getpass()"),
+        ("password=getpass.getpass()", None, "password=getpass.getpass()"),
+        (
+            'connect(password=os.environ["DB_PASSWORD"])',
+            None,
+            'connect(password=os.environ["DB_PASSWORD"])',
+        ),
+        ("const color = violet.green;", None, "const color = violet.green;"),
+        ("[foo]", "array", "[foo]"),
+        ("1947", "year", "1947"),
+        ("null", "password", "null"),
+        ("[REDACTED]", "password", "[REDACTED]"),
+        ("[redacted]", "password", "[redacted]"),
+        ("[EMAIL]", "password", "[EMAIL]"),
+    ],
+)
+def test_explicit_credential_context(text, key, expected):
+    assert redact(text, key=key)[0] == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('password="violet47', 'password="[SECRET:generic]'),
+        ("password='violet47\\", "password='[SECRET:generic]"),
+        ("password=`violet47", "password=`[SECRET:generic]"),
+        (
+            "password=" + "a" * 260 + "7b; next",
+            "password=[SECRET:generic]; next",
+        ),
+        (
+            'password="' + "a" * 4096 + '7b"; next',
+            'password="[SECRET:generic]"; next',
+        ),
+        (DSN.format("a" * 4097), DSN.format("[SECRET:url-password]")),
+        ('password="<your-password>"; next', 'password="<your-password>"; next'),
+        ('password="changeme', 'password="changeme'),
+        (
+            'password="violet47\nuser = "bob"',
+            'password="[SECRET:generic]\nuser = "bob"',
+        ),
+        ("https://example.invalid:8080/path", "https://example.invalid:8080/path"),
+        (
+            "https://proxy:8080/" + "a" * 130 + "?to=" + DSN.format("violet47"),
+            "https://proxy:8080/"
+            + "a" * 130
+            + "?to="
+            + DSN.format("[SECRET:url-password]"),
+        ),
+    ],
+)
+def test_credential_value_ends(text, expected):
+    assert redact(text)[0] == expected
+
+
+def test_long_url_scan_does_not_retry_every_prefix():
+    import time
+
+    text = ("https://u:word?" * 12_000) + "@!"
+    ports = ("https://h:1/" * 24_000) + DSN.format("violet47")
+    start = time.process_time()
+    assert redact(text) == (text, [])
+    assert "violet47" not in redact(ports)[0]
+    elapsed = time.process_time() - start
+    assert elapsed < 2.0, f"{elapsed:.3f} CPU seconds"
