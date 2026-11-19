@@ -228,6 +228,24 @@ def test_redact_json_uses_keys_and_keeps_structure():
     }
 
 
+def test_redact_json_signed_numbers_in_sensitive_fields():
+    data = {
+        "ssn": -123456789,
+        "phone": -4155552671.0,
+        "card": -4111111111111111,
+        "rows": [["+123456789", -123456789, -1234.5, -666123456]],
+        "cols": ["ssn", "order_id", "phone", "ssn"],
+        "balance": -4155552671.0,
+    }
+    assert redact_json(data) == {
+        **data,
+        "ssn": "[SSN]",
+        "phone": "[PHONE]",
+        "card": "[CARD]",
+        "rows": [["[SSN]", -123456789, -1234.5, -666123456]],
+    }
+
+
 @pytest.mark.parametrize(
     ("text", "kwargs", "leak"),
     [
