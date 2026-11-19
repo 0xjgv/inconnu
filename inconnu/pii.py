@@ -121,18 +121,21 @@ def find(text: str, key: str | None):
         if conf:
             yield m.start(), m.end(), "PHONE", conf, "phonenumbers"
     stripped = text.strip()
-    if (
-        key and stripped.isdigit()
-    ):  # a bare number is personal data only when its column says so
+    signed = stripped.startswith(("+", "-"))
+    magnitude = stripped[1:] if signed else stripped
+    if key and magnitude.isdigit():  # a bare number needs column context
         start = text.index(stripped)
-        if phone_key and _phone(stripped, True):
-            yield start, start + len(stripped), "PHONE", 0.9, "phonenumbers"
+        end = start + len(stripped)
+        if phone_key and _phone(magnitude, True):
+            yield start, end, "PHONE", 0.9, "phonenumbers"
         elif (
-            len(stripped) == 9
+            len(magnitude) == 9
             and SSN_KEY.search(key)
-            and _ssn(f"{stripped[:3]}-{stripped[3:5]}-{stripped[5:]}")
+            and _ssn(f"{magnitude[:3]}-{magnitude[3:5]}-{magnitude[5:]}")
         ):
-            yield start, start + len(stripped), "SSN", 0.9, "regex"
+            yield start, end, "SSN", 0.9, "regex"
+        elif signed and card_key and (conf := _card(magnitude, True)):
+            yield start, end, "CARD", conf, "luhn"
 
 
 def _ipv4(value: str) -> float:
