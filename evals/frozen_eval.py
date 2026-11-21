@@ -36,17 +36,32 @@ def git(*args: str) -> bytes:
     return subprocess.check_output([GIT, *args], cwd=ROOT)
 
 
-def load_corpus():
-    data = gzip.decompress((FROZEN / "v1.jsonl.gz").read_bytes())
-    cases = (FROZEN / "v1-cases.json").read_bytes()
+def load_corpus(revision: str | None = None):
+    def read(name):
+        if revision:
+            return git("show", f"{revision}:evals/frozen/{name}")
+        return (FROZEN / name).read_bytes()
+
+    manifest = json.loads(read("manifest.json"))
+    version = manifest["version"]
+    if type(version) is not int or version < 1:
+        raise ValueError("Invalid frozen corpus version")
+    with gzip.GzipFile(fileobj=io.BytesIO(read(f"v{version}.jsonl.gz"))) as stream:
+        data = stream.read(16_000_001)
+    cases = read(f"v{version}-cases.json")
+    if len(data) > 16_000_000 or len(cases) > 128_000:
+        raise ValueError("Frozen corpus exceeds the runner's input limit")
     digest = hashlib.sha256(data + cases).hexdigest()
-    if digest != (FROZEN / "v1.sha256").read_text().strip():
+    if digest != manifest["sha256"]:
         raise ValueError("Frozen corpus checksum does not match")
     records = [json.loads(line) for line in data.splitlines()]
     named = json.loads(cases)
     if not records or not named:
         raise ValueError("The frozen corpus and named regressions must both be present")
-    return digest, records + named
+    combined = records + named
+    if len({str(row["id"]) for row in combined}) != len(combined):
+        raise ValueError("Frozen corpus IDs must be unique")
+    return digest, combined
 
 
 def runtime_requirement(revision: str) -> str:
@@ -144,12 +159,30 @@ def predictions(revision: str, records, images: dict, native: bool):
         ) as archive:
             archive.extractall(source, filter="data")
         command = detector_command(source, requirement, images, native)
-        result = subprocess.run(command, input=request, capture_output=True, timeout=90)
-    if result.returncode:
-        raise ValueError(f"Detector {revision} exited with status {result.returncode}")
-    if len(result.stdout) > 4_000_000:
+        with tempfile.TemporaryFile() as stdout:
+            # Cap the host file the Docker client can write. Detector stderr is untrusted.
+            result = subprocess.run(
+                [
+                    "/bin/sh",
+                    "-c",
+                    'ulimit -f 8192 && exec "$@"',
+                    "frozen-detector",
+                    *command,
+                ],
+                input=request,
+                stdout=stdout,
+                stderr=subprocess.DEVNULL,
+                timeout=90,
+            )
+            if result.returncode:
+                raise ValueError(
+                    f"Detector {revision} exited with status {result.returncode}"
+                )
+            stdout.seek(0)
+            payload = stdout.read(4_000_001)
+    if len(payload) > 4_000_000:
         raise ValueError(f"Detector {revision} returned too much output")
-    return requirement, (json.loads(line) for line in result.stdout.splitlines())
+    return requirement, (json.loads(line) for line in payload.splitlines())
 
 
 def measure(records, outputs):
@@ -233,16 +266,27 @@ def main() -> int:
     parser.add_argument(
         "--native", action="store_true", help="local trusted revisions only"
     )
+    parser.add_argument("--validate-candidate-corpus", action="store_true")
     args = parser.parse_args()
+    base_sha, candidate_sha = (
+        git("rev-parse", "--verify", "--end-of-options", f"{rev}^{{commit}}")
+        .decode()
+        .strip()
+        for rev in (args.base, args.candidate)
+    )
     digest, records = load_corpus()
     stats = []
     images = {}
-    for revision in (args.base, args.candidate):
-        sha = (
-            git("rev-parse", "--verify", "--end-of-options", f"{revision}^{{commit}}")
-            .decode()
-            .strip()
-        )
+    if args.validate_candidate_corpus:
+        candidate_digest, candidate_records = load_corpus(candidate_sha)
+        if candidate_digest != digest:
+            _, output = predictions(base_sha, candidate_records, images, args.native)
+            bad_cases = measure(candidate_records, output)["named_failures"]
+            if bad_cases:
+                raise ValueError(
+                    f"New frozen corpus fails named cases on main: {sorted(bad_cases)}"
+                )
+    for sha in (base_sha, candidate_sha):
         requirement, output = predictions(sha, records, images, args.native)
         stats.append({"sha": sha, "runtime": requirement, **measure(records, output)})
     base, candidate = stats

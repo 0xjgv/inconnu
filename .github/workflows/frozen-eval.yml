@@ -46,7 +46,7 @@ jobs:
             exit "$result"
           fi
           uv run --python 3.14.10 --no-project -- python -m evals.frozen_eval \
-            "$BASE" "$SHA" --output "reports/$SHA.json"
+            "$BASE" "$SHA" --output "reports/$SHA.json" --validate-candidate-corpus
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
