@@ -333,3 +333,90 @@ def test_quoted_cookie_preserves_escaped_quote_and_separators():
         redact(r'Cookie: auth="one\"two;three"; theme=dark')[0]
         == 'Cookie: auth="[SECRET:cookie]"; theme=dark'
     )
+
+
+def test_digits_only_phone_requires_a_phone_label():
+    text = "Phone: 4155552671. Scan ID: 4155552671."
+    output, findings = redact(text)
+    assert output == "Phone: [PHONE]. Scan ID: 4155552671."
+    assert [(f["type"], f["start"], f["end"]) for f in findings] == [("PHONE", 7, 17)]
+
+
+@pytest.mark.parametrize("line_ending", ["\n", "\r\n", "\r"])
+def test_markdown_table_uses_column_context_without_changing_other_cells(line_ending):
+    text = (
+        "Inventory\n\n"
+        "| Contact | Database password | Project ID |\n"
+        "| :--- | --- | ---: |\n"
+        "| Amélina Xovnari | plumviolet | 4155552671 |\n"
+        "| | | 4155552671 |\n"
+    )
+    expected = (
+        "Inventory\n\n"
+        "| Contact | Database password | Project ID |\n"
+        "| :--- | --- | ---: |\n"
+        "| [PERSON] | [SECRET:generic] | 4155552671 |\n"
+        "| | | 4155552671 |\n"
+    )
+    text = text.replace("\n", line_ending)
+    expected = expected.replace("\n", line_ending)
+    output, findings = redact(text)
+    assert output == expected
+    assert [text[f["start"] : f["end"]] for f in findings] == [
+        "Amélina Xovnari",
+        "plumviolet",
+    ]
+    assert redact(output) == (expected, [])
+
+
+def test_markdown_table_keeps_an_escaped_pipe_within_the_secret_cell():
+    text = "Password | Status\n--- | ---\nplum\\|violet | active\n\nordinary | prose"
+    assert redact(text)[0] == (
+        "Password | Status\n--- | ---\n[SECRET:generic] | active\n\nordinary | prose"
+    )
+
+
+def test_passphrase_context_covers_the_complete_phrase():
+    text = 'Passphrase: "plum violet"\nPaint colour: "plum violet"'
+    assert redact(text)[0] == (
+        'Passphrase: "[SECRET:generic]"\nPaint colour: "plum violet"'
+    )
+    assert redact("Passphrase: plum violet\nContinue")[0] == (
+        "Passphrase: [SECRET:generic]\nContinue"
+    )
+    assert redact_json({"passphrase": "plum violet", "colour": "plum violet"}) == {
+        "passphrase": "[SECRET:generic]",
+        "colour": "plum violet",
+    }
+
+
+@pytest.mark.parametrize("key", ["Passphrase", "password"])
+def test_bare_redaction_placeholder_is_idempotent(key):
+    text = f"{key}: [SECRET:generic]"
+    assert redact(text) == (text, [])
+    assert redact(f"{key}: [SECRET:generic]fixture")[0] == f"{key}: [SECRET:generic]"
+
+
+def test_bracketed_passphrase_is_redacted_in_full():
+    text = "Passphrase: [fixture-words]"
+    output, findings = redact(text)
+    assert output == "Passphrase: [SECRET:generic]"
+    assert redact(output) == (output, [])
+    assert [text[f["start"] : f["end"]] for f in findings] == ["[fixture-words]"]
+
+
+@pytest.mark.parametrize("expression", ["get_secret()", 'os.environ["DB_PASSWORD"]'])
+def test_unquoted_passphrase_preserves_credential_expressions(expression):
+    text = f"Passphrase: {expression}"
+    assert redact(text) == (text, [])
+    assert (
+        redact(f"Passphrase: {json.dumps(expression)}")[0]
+        == 'Passphrase: "[SECRET:generic]"'
+    )
+
+
+def test_markdown_telephone_and_cell_number_columns():
+    header = "| Telephone Number | Cell Number | Scan ID |\n| --- | --- | --- |\n"
+    assert redact(header + "| 4155552671 | 4155552671 | 4155552671 |")[0] == (
+        header + "| [PHONE] | [PHONE] | 4155552671 |"
+    )

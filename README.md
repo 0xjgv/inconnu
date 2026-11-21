@@ -85,6 +85,10 @@ Exit 0 on success, 2 when `--json` input is not JSON, 1 on any other error. On f
 stdout and the error message never quotes the input, so a caller that forwards stdout cannot leak unredacted data.
 A stdlib-only caller can run it as a subprocess: `subprocess.run(["inconnu", "--json"], input=json.dumps(result), capture_output=True, text=True)`.
 
+Text mode uses labels such as `Phone:` and `Passphrase:` as context. It also uses headers in Markdown pipe tables
+to redact phone, contact, and credential cells while preserving the table. Label short passphrases explicitly so
+the redactor can distinguish them from ordinary words.
+
 ## Placeholders
 
 | Placeholder | Detects |

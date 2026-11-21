@@ -36,6 +36,16 @@ DIGITS = re.compile(r"\D")
 DATE = re.compile(r"\d{4}([-./ ])\d{1,2}\1\d{1,2}|\d{1,2}([-./ ])\d{1,2}\2\d{2,4}")
 
 PHONE_KEY = re.compile(r"(?i)(?:phone|mobile|cell|tel|fax|msisdn)")
+_PHONE_FIELD = (
+    r"(?:(?:phone|telephone)(?:[_ -]+number)?|"
+    r"(?:mobile|cell)(?:[_ -]+(?:phone|number))?|tel|fax|msisdn)"
+)
+PHONE_FIELD = re.compile(_PHONE_FIELD, re.IGNORECASE)
+LABELED_PHONE = re.compile(
+    rf"(?<![\w-]){_PHONE_FIELD}[ \t]*[:=][ \t]*"
+    r"""["'`]?([0-9]{7,15})(?![\w-]|\.\d)""",
+    re.IGNORECASE,
+)
 SSN_KEY = re.compile(r"(?i)(?:ssn|social_?security)")
 CARD_KEY = re.compile(r"(?i)(?:card|ccn|\bpan\b|credit)")
 # National formats that start with a trunk 0; US numbers are tried first.
@@ -120,6 +130,11 @@ def find(text: str, key: str | None):
         conf = _phone(m.group(), phone_key)
         if conf:
             yield m.start(), m.end(), "PHONE", conf, "phonenumbers"
+    if ":" in text or "=" in text:
+        for labeled in LABELED_PHONE.finditer(text):
+            if conf := _phone(labeled.group(1), True):
+                start, end = labeled.span(1)
+                yield start, end, "PHONE", conf, "phonenumbers"
     stripped = text.strip()
     signed = stripped.startswith(("+", "-"))
     magnitude = stripped[1:] if signed else stripped

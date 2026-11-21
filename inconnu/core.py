@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import credentials, entropy, person, pii
+from . import credentials, entropy, markdown, person, pii
 from .scorer import Scorer, describe
 
 # Thresholds come from evals/: below LOW a candidate is dropped, at or above HIGH it is redacted,
@@ -15,8 +15,13 @@ MIN_LENGTH = 5  # shorter unkeyed cells cannot hold any detected type ("Dr Li" i
 def _spans(text: str, key: str | None) -> list[tuple]:
     if len(text) < MIN_LENGTH and not key:
         return []
+    detectors = (
+        (*DETECTORS, markdown.find)
+        if "|" in text and ("\n" in text or "\r" in text)
+        else DETECTORS
+    )
     candidates = sorted(
-        (c for find in DETECTORS for c in find(text, key) if c[3] >= LOW),
+        (c for find in detectors for c in find(text, key) if c[3] >= LOW),
         key=lambda c: c[0],
     )
     kept: list[tuple] = []
