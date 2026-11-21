@@ -132,7 +132,7 @@ def find(text: str, key: str | None):
             yield m.start(), m.end(), "PHONE", conf, "phonenumbers"
     if ":" in text or "=" in text:
         for labeled in LABELED_PHONE.finditer(text):
-            if conf := _phone(labeled.group(1), False):
+            if conf := _phone(labeled.group(1), True):
                 start, end = labeled.span(1)
                 yield start, end, "PHONE", conf, "phonenumbers"
     stripped = text.strip()
