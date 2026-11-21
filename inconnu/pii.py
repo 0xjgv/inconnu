@@ -37,8 +37,8 @@ DATE = re.compile(r"\d{4}([-./ ])\d{1,2}\1\d{1,2}|\d{1,2}([-./ ])\d{1,2}\2\d{2,4
 
 PHONE_KEY = re.compile(r"(?i)(?:phone|mobile|cell|tel|fax|msisdn)")
 _PHONE_FIELD = (
-    r"(?:phone(?:[_ -]+number)?|mobile(?:[_ -]+(?:phone|number))?|"
-    r"cell(?:[_ -]+phone)?|telephone|tel|fax|msisdn)"
+    r"(?:(?:phone|telephone)(?:[_ -]+number)?|"
+    r"(?:mobile|cell)(?:[_ -]+(?:phone|number))?|tel|fax|msisdn)"
 )
 PHONE_FIELD = re.compile(_PHONE_FIELD, re.IGNORECASE)
 LABELED_PHONE = re.compile(

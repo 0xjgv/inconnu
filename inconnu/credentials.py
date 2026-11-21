@@ -350,7 +350,7 @@ def find(text: str, key: str | None):
     if "passphrase" in lower:
         for m in PASSPHRASE_LINE.finditer(text):
             value = m.group(1).rstrip()
-            if conf := value_confidence(value, quoted=True):
+            if conf := value_confidence(value, quoted=False):
                 yield (
                     m.start(1),
                     m.start(1) + len(value),
@@ -362,11 +362,19 @@ def find(text: str, key: str | None):
         KEY_VALUE.finditer(text) if any(k in lower for k in KEYWORD_LITERALS) else ()
     ):
         group = next(g for g in ("dq", "sq", "bq", "bare") if m.group(g) is not None)
-        if any(start <= m.start(group) < end for start, end, _ in cookie_ranges):
+        start, end = m.span(group)
+        if any(a <= start < b for a, b, _ in cookie_ranges):
             continue  # A cookie header contains attributes and preferences as well as credentials.
-        if any(start <= m.start(group) < end for start, end, _ in query_secrets):
+        if any(a <= start < b for a, b, _ in query_secrets):
             continue  # URL parameters end at &, even when a generic bare value would continue.
-        operator = text[m.end("key") : m.start(group)]
+        # A bare match may leave the closing bracket of a placeholder outside its span.
+        if (
+            group == "bare"
+            and text[end : end + 1] == "]"
+            and BRACKET_PLACEHOLDER.fullmatch(text, start, end + 1)
+        ):
+            continue
+        operator = text[m.end("key") : start]
         # Conventional source assignments can contain calls and known runtime references.
         code_assignment = (
             operator[0].isspace() and operator[-1].isspace() and operator.strip() == "="
@@ -375,7 +383,7 @@ def find(text: str, key: str | None):
             m.group(group), quoted=group != "bare", code_assignment=code_assignment
         )
         if conf:
-            yield m.start(group), m.end(group), "SECRET:generic", conf, "keyword"
+            yield start, end, "SECRET:generic", conf, "keyword"
     if secret_key(key) and not (
         cookie_ranges and key.lower().replace("_", "-") in {"cookie", "set-cookie"}
     ):

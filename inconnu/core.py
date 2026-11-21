@@ -16,7 +16,9 @@ def _spans(text: str, key: str | None) -> list[tuple]:
     if len(text) < MIN_LENGTH and not key:
         return []
     detectors = (
-        (*DETECTORS, markdown.find) if "|" in text and "\n" in text else DETECTORS
+        (*DETECTORS, markdown.find)
+        if "|" in text and ("\n" in text or "\r" in text)
+        else DETECTORS
     )
     candidates = sorted(
         (c for find in detectors for c in find(text, key) if c[3] >= LOW),
