@@ -1,0 +1,62 @@
+[
+  {
+    "id": "phone-label-and-id",
+    "text": "Phone: 4155552671. Scan ID: 4155552671.",
+    "key": null,
+    "expected": "Phone: [PHONE]. Scan ID: 4155552671."
+  },
+  {
+    "id": "markdown-contact-and-password",
+    "text": "| Contact | Password |\n| --- | --- |\n| Amélina Xovnari | plumviolet |",
+    "key": null,
+    "expected": "| Contact | Password |\n| --- | --- |\n| [PERSON] | [SECRET:generic] |"
+  },
+  {
+    "id": "markdown-cr-line-endings",
+    "text": "| Password |\r| --- |\r| plumviolet |",
+    "key": null,
+    "expected": "| Password |\r| --- |\r| [SECRET:generic] |"
+  },
+  {
+    "id": "markdown-escaped-pipe",
+    "text": "Password | Status\n--- | ---\nplum\\|violet | active",
+    "key": null,
+    "expected": "Password | Status\n--- | ---\n[SECRET:generic] | active"
+  },
+  {
+    "id": "markdown-phone-columns",
+    "text": "| Telephone Number | Cell Number | Scan ID |\n| --- | --- | --- |\n| 4155552671 | 4155552671 | 4155552671 |",
+    "key": null,
+    "expected": "| Telephone Number | Cell Number | Scan ID |\n| --- | --- | --- |\n| [PHONE] | [PHONE] | 4155552671 |"
+  },
+  {
+    "id": "quoted-passphrase",
+    "text": "Passphrase: \"plum violet\"\nPaint colour: \"plum violet\"",
+    "key": null,
+    "expected": "Passphrase: \"[SECRET:generic]\"\nPaint colour: \"plum violet\""
+  },
+  {
+    "id": "unquoted-passphrase",
+    "text": "Passphrase: plum violet\nContinue",
+    "key": null,
+    "expected": "Passphrase: [SECRET:generic]\nContinue"
+  },
+  {
+    "id": "passphrase-function-call",
+    "text": "Passphrase: get_secret()",
+    "key": null,
+    "expected": "Passphrase: get_secret()"
+  },
+  {
+    "id": "passphrase-environment-reference",
+    "text": "Passphrase: os.environ[\"DB_PASSWORD\"]",
+    "key": null,
+    "expected": "Passphrase: os.environ[\"DB_PASSWORD\"]"
+  },
+  {
+    "id": "passphrase-existing-placeholder",
+    "text": "Passphrase: [SECRET:generic]",
+    "key": null,
+    "expected": "Passphrase: [SECRET:generic]"
+  }
+]

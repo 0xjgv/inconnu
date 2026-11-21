@@ -159,6 +159,25 @@ Latency on Python 3.14.10 (arm64): p50 12.8 µs and p99 90.3 µs per cell under 
 
 Run `make score` to measure the working detector on dev. Minimize weighted leak and false-redaction cost while passing all four gates. Every detector PR appends a row with `make scoreboard LABEL="description"`. Explain declines in guarded metrics with `REASON="explanation"`. Use `make scoreboard-holdout` to sanity-check a fresh seed, and reserve the test split for releases. The [scoreboard](evals/SCOREBOARD.md) records the corpus, costs, gate definitions and historical rows.
 
+### Frozen regression check
+
+The required `frozen-eval` check compares the proposed merge commit with its exact `main` base.
+It fails when fully or partially exposed spans increase in any secret or PII category, false redactions increase in
+either negative bucket, or a named case produces the wrong output. Reports list newly failing
+and recovered case IDs, even when counts stay equal. Pushes to `main` also record a report for each
+new first-parent commit. Timing and the release holdout follow their existing workflows.
+
+The corpus version lives in [evals/frozen](evals/frozen). Version 1 uses a saved dev corpus
+and named cases from PR #31. Its checksum covers the uncompressed JSONL bytes followed by the
+named-case file's bytes. Update the corpus and evaluator separately from detector changes so
+each comparison uses the same rules and inputs. The CI job uses the evaluator from the default
+branch. It runs each detector in a read-only container without network access and installs the
+version of `phonenumberslite` recorded in that revision's lockfile.
+
+To compare two trusted local revisions, use
+`python -m evals.frozen_eval BASE CANDIDATE --native --output report.json`.
+Omit `--native` to run both revisions in the CI container.
+
 ## Migrating from 0.1
 
 0.2.0 is a rewrite. `Inconnu`, `Config`, pseudonymization and `restore()`, the spaCy pipeline, custom NER components,
