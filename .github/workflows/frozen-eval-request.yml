@@ -1,0 +1,13 @@
+name: Request frozen eval
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Request a frozen eval from the default branch."
