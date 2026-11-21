@@ -333,3 +333,55 @@ def test_quoted_cookie_preserves_escaped_quote_and_separators():
         redact(r'Cookie: auth="one\"two;three"; theme=dark')[0]
         == 'Cookie: auth="[SECRET:cookie]"; theme=dark'
     )
+
+
+def test_digits_only_phone_requires_a_phone_label():
+    text = "Phone: 4155552671. Scan ID: 4155552671."
+    output, findings = redact(text)
+    assert output == "Phone: [PHONE]. Scan ID: 4155552671."
+    assert [(f["type"], f["start"], f["end"]) for f in findings] == [("PHONE", 7, 17)]
+
+
+def test_markdown_table_uses_column_context_without_changing_other_cells():
+    text = (
+        "Inventory\r\n\r\n"
+        "| Contact | Database password | Project ID |\r\n"
+        "| :--- | --- | ---: |\r\n"
+        "| Amélina Xovnari | plumviolet | 4155552671 |\r\n"
+        "| | | 4155552671 |\r\n"
+    )
+    expected = (
+        "Inventory\r\n\r\n"
+        "| Contact | Database password | Project ID |\r\n"
+        "| :--- | --- | ---: |\r\n"
+        "| [PERSON] | [SECRET:generic] | 4155552671 |\r\n"
+        "| | | 4155552671 |\r\n"
+    )
+    output, findings = redact(text)
+    assert output == expected
+    assert [text[f["start"] : f["end"]] for f in findings] == [
+        "Amélina Xovnari",
+        "plumviolet",
+    ]
+    assert redact(output) == (expected, [])
+
+
+def test_markdown_table_keeps_an_escaped_pipe_within_the_secret_cell():
+    text = "Password | Status\n--- | ---\nplum\\|violet | active\n\nordinary | prose"
+    assert redact(text)[0] == (
+        "Password | Status\n--- | ---\n[SECRET:generic] | active\n\nordinary | prose"
+    )
+
+
+def test_passphrase_context_covers_the_complete_phrase():
+    text = 'Passphrase: "plum violet"\nPaint colour: "plum violet"'
+    assert redact(text)[0] == (
+        'Passphrase: "[SECRET:generic]"\nPaint colour: "plum violet"'
+    )
+    assert redact("Passphrase: plum violet\nContinue")[0] == (
+        "Passphrase: [SECRET:generic]\nContinue"
+    )
+    assert redact_json({"passphrase": "plum violet", "colour": "plum violet"}) == {
+        "passphrase": "[SECRET:generic]",
+        "colour": "plum violet",
+    }
